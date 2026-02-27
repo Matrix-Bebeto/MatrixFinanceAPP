@@ -1,0 +1,136 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius: 0.75rem;
+  
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  :root {
+    --background: #f8fafc;
+    --foreground: #0a0a0c;
+    --card: #ffffff;
+    --card-foreground: #0a0a0c;
+    --popover: #ffffff;
+    --popover-foreground: #0a0a0c;
+    --primary: #0a0a0c;
+    --primary-foreground: #ffffff;
+    --secondary: #f1f5f9;
+    --secondary-foreground: #0a0a0c;
+    --muted: #f1f5f9;
+    --muted-foreground: #64748b;
+    --accent: #f1f5f9;
+    --accent-foreground: #0a0a0c;
+    --destructive: #ff3366;
+    --destructive-foreground: #ffffff;
+    --border: #e2e8f0;
+    --input: #e2e8f0;
+    --ring: #94a3b8;
+    
+    --glass-panel-bg: rgba(255, 255, 255, 0.7);
+    --glass-panel-border: rgba(0, 0, 0, 0.05);
+    --glass-card-bg-start: rgba(255, 255, 255, 0.8);
+    --glass-card-bg-end: rgba(248, 250, 252, 0.9);
+    --glass-card-border: rgba(0, 0, 0, 0.05);
+    --glass-card-shadow: rgba(0, 0, 0, 0.05);
+  }
+
+  .dark {
+    --background: #0a0a0c;
+    --foreground: #f8fafc;
+    --card: #121418;
+    --card-foreground: #f8fafc;
+    --popover: #121418;
+    --popover-foreground: #f8fafc;
+    --primary: #f8fafc;
+    --primary-foreground: #0a0a0c;
+    --secondary: #1e2128;
+    --secondary-foreground: #f8fafc;
+    --muted: #1e2128;
+    --muted-foreground: #94a3b8;
+    --accent: #1e2128;
+    --accent-foreground: #f8fafc;
+    --destructive: #ff3366;
+    --destructive-foreground: #f8fafc;
+    --border: #272a30;
+    --input: #272a30;
+    --ring: #272a30;
+    
+    --glass-panel-bg: rgba(18, 20, 24, 0.6);
+    --glass-panel-border: rgba(255, 255, 255, 0.05);
+    --glass-card-bg-start: rgba(30, 33, 40, 0.6);
+    --glass-card-bg-end: rgba(18, 20, 24, 0.8);
+    --glass-card-border: rgba(255, 255, 255, 0.03);
+    --glass-card-shadow: rgba(0, 0, 0, 0.3);
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}
+
+@layer utilities {
+  .neon-green-text {
+    color: #00ff88;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+  }
+  .neon-red-text {
+    color: #ff3366;
+    text-shadow: 0 0 10px rgba(255, 51, 102, 0.4);
+  }
+  .neon-green-border {
+    border-color: rgba(0, 255, 136, 0.5);
+    box-shadow: 0 0 15px rgba(0, 255, 136, 0.15), inset 0 0 10px rgba(0, 255, 136, 0.05);
+  }
+  .neon-red-border {
+    border-color: rgba(255, 51, 102, 0.5);
+    box-shadow: 0 0 15px rgba(255, 51, 102, 0.15), inset 0 0 10px rgba(255, 51, 102, 0.05);
+  }
+  .neon-green-bg {
+    background-color: rgba(0, 255, 136, 0.1);
+    color: #00ff88;
+    border: 1px solid rgba(0, 255, 136, 0.3);
+  }
+  .neon-red-bg {
+    background-color: rgba(255, 51, 102, 0.1);
+    color: #ff3366;
+    border: 1px solid rgba(255, 51, 102, 0.3);
+  }
+  .glass-panel {
+    background: var(--glass-panel-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-panel-border);
+  }
+  .glass-card {
+    background: linear-gradient(145deg, var(--glass-card-bg-start) 0%, var(--glass-card-bg-end) 100%);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-card-border);
+    box-shadow: 0 8px 32px 0 var(--glass-card-shadow);
+  }
+}

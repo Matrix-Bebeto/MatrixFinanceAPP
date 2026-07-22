@@ -148,6 +148,14 @@ export function Reminders() {
   const formatDate = (dateString: string) => {
     if (!dateString) return ""
     try {
+      const cleanDate = dateString.split('T')[0]
+      const parts = cleanDate.split('-')
+      if (parts.length === 3) {
+        const [year, month, day] = parts
+        if (year.length === 4) {
+          return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`
+        }
+      }
       return format(parseISO(dateString), "dd/MM/yyyy", { locale: ptBR })
     } catch (e) {
       return dateString

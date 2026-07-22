@@ -122,7 +122,7 @@ export function Layout() {
         </nav>
 
         <div className="p-4 border-t border-border space-y-2">
-          <div className="flex items-center gap-3 mb-4 px-2">
+          <Link to="/subscription" className="flex items-center gap-3 mb-4 px-2 hover:bg-foreground/5 p-1.5 rounded-xl transition-all group cursor-pointer">
             {profile?.avatar_url ? (
               <img src={profile.avatar_url} alt="Avatar" className="w-10 h-10 rounded-full border border-border object-cover" />
             ) : (
@@ -130,13 +130,17 @@ export function Layout() {
                 {(profile?.nome || user?.email || "U").substring(0, 2).toUpperCase()}
               </div>
             )}
-            <div className="overflow-hidden">
-              <p className="text-sm font-medium text-foreground truncate">{profile?.nome || user?.email || "Usuário"}</p>
+            <div className="overflow-hidden flex-1">
+              <p className="text-sm font-medium text-foreground truncate group-hover:text-[#00ff88] transition-colors">{profile?.nome || user?.email || "Usuário"}</p>
               <p className="text-xs text-muted-foreground truncate">
-                {profile?.subscription_status === 'active' ? 'Plano Pro' : 'Plano Grátis'}
+                {profile?.subscription_status === 'active' ? (
+                  <span className="text-[#00ff88] font-bold">Plano Pro</span>
+                ) : (
+                  <span>Plano Grátis</span>
+                )}
               </p>
             </div>
-          </div>
+          </Link>
           
           <button
             onClick={toggleTheme}

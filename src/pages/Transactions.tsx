@@ -138,7 +138,7 @@ export function Transactions() {
 
       const payload = {
         estabelecimento: formData.estabelecimento,
-        valor: formData.tipo === 'despesa' ? -Math.abs(Number(formData.valor)) : Math.abs(Number(formData.valor)),
+        valor: Math.abs(Number(formData.valor)),
         tipo: formData.tipo,
         category_id: formData.category_id,
         detalhes: formData.detalhes,
@@ -195,6 +195,14 @@ export function Transactions() {
   const formatDate = (dateString: string) => {
     if (!dateString) return ""
     try {
+      const cleanDate = dateString.split('T')[0]
+      const parts = cleanDate.split('-')
+      if (parts.length === 3) {
+        const [year, month, day] = parts
+        if (year.length === 4) {
+          return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`
+        }
+      }
       return format(parseISO(dateString), "dd/MM/yyyy", { locale: ptBR })
     } catch (e) {
       return dateString
@@ -238,7 +246,7 @@ export function Transactions() {
             </div>
           </CardHeader>
           <CardContent className="relative z-10">
-            <div className="text-3xl font-bold neon-green-text">{formatCurrency(receitas)}</div>
+            <div className="text-3xl font-bold text-[#00ff88]">{formatCurrency(receitas)}</div>
           </CardContent>
         </Card>
         <Card className="glass-card border-none relative overflow-hidden group">
@@ -250,7 +258,7 @@ export function Transactions() {
             </div>
           </CardHeader>
           <CardContent className="relative z-10">
-            <div className="text-3xl font-bold neon-red-text">{formatCurrency(despesas)}</div>
+            <div className="text-3xl font-bold text-[#ff3366]">{formatCurrency(despesas)}</div>
           </CardContent>
         </Card>
         <Card className="glass-card border-none relative overflow-hidden group">
@@ -262,7 +270,7 @@ export function Transactions() {
             </div>
           </CardHeader>
           <CardContent className="relative z-10">
-            <div className={`text-3xl font-bold ${saldo < 0 ? 'neon-red-text' : 'text-foreground'}`}>
+            <div className={`text-3xl font-bold ${saldo < 0 ? 'text-[#ff3366]' : 'text-foreground'}`}>
               {formatCurrency(saldo)}
             </div>
           </CardContent>
@@ -333,7 +341,7 @@ export function Transactions() {
                     </div>
                   </div>
                   <div className="flex sm:flex-col items-center sm:items-end justify-between gap-4 sm:gap-3 w-full sm:w-auto border-t sm:border-t-0 pt-4 sm:pt-0 mt-2 sm:mt-0 border-border">
-                    <span className={`font-bold text-lg ${isReceita ? 'neon-green-text' : 'neon-red-text'}`}>
+                    <span className={`font-bold text-lg ${isReceita ? 'text-[#00ff88]' : 'text-[#ff3366]'}`}>
                       {isReceita ? '+' : '-'}{formatCurrency(Math.abs(valor))}
                     </span>
                     {itemToDelete === item.id ? (

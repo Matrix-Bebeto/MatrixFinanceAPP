@@ -73,8 +73,9 @@ export function Dashboard() {
       let receitas = 0
       let despesas = 0
       const categoryTotals: Record<string, number> = {}
+      const transactions = txs || []
 
-      txs.forEach(tx => {
+      transactions.forEach(tx => {
         const valor = Number(tx.valor || tx.amount || 0)
         const tipo = (tx.tipo || tx.type || '').toLowerCase()
         
@@ -96,7 +97,7 @@ export function Dashboard() {
         despesas,
         saldo: receitas - despesas,
         lembretes: rems.filter(r => r.status !== 'concluido' && r.status !== 'completed').length,
-        transacoesCount: txs.length
+        transacoesCount: transactions.length
       })
 
       const formattedBarData = Object.entries(categoryTotals)
@@ -137,6 +138,14 @@ export function Dashboard() {
   const formatDate = (dateString: string) => {
     if (!dateString) return ""
     try {
+      const cleanDate = dateString.split('T')[0]
+      const parts = cleanDate.split('-')
+      if (parts.length === 3) {
+        const [year, month, day] = parts
+        if (year.length === 4) {
+          return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`
+        }
+      }
       return format(parseISO(dateString), "dd/MM/yyyy", { locale: ptBR })
     } catch (e) {
       return dateString
@@ -211,7 +220,7 @@ export function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent className="relative z-10">
-                <div className="text-3xl font-bold neon-green-text">{formatCurrency(stats.receitas)}</div>
+                <div className="text-3xl font-bold text-[#00ff88]">{formatCurrency(stats.receitas)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Mês selecionado</p>
               </CardContent>
             </Card>
@@ -227,7 +236,7 @@ export function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent className="relative z-10">
-                <div className="text-3xl font-bold neon-red-text">{formatCurrency(stats.despesas)}</div>
+                <div className="text-3xl font-bold text-[#ff3366]">{formatCurrency(stats.despesas)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Mês selecionado</p>
               </CardContent>
             </Card>
@@ -243,7 +252,7 @@ export function Dashboard() {
                 </div>
               </CardHeader>
               <CardContent className="relative z-10">
-                <div className={`text-3xl font-bold ${stats.saldo < 0 ? 'neon-red-text' : 'text-foreground'}`}>
+                <div className={`text-3xl font-bold ${stats.saldo < 0 ? 'text-[#ff3366]' : 'text-foreground'}`}>
                   {formatCurrency(stats.saldo)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Receitas - Despesas</p>
@@ -341,15 +350,15 @@ export function Dashboard() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between border-b border-border pb-4">
                     <span className="text-sm font-medium text-muted-foreground">Receitas</span>
-                    <span className="text-sm font-bold neon-green-text">{formatCurrency(stats.receitas)}</span>
+                    <span className="text-sm font-bold text-[#00ff88]">{formatCurrency(stats.receitas)}</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-border pb-4">
                     <span className="text-sm font-medium text-muted-foreground">Despesas</span>
-                    <span className="text-sm font-bold neon-red-text">{formatCurrency(stats.despesas)}</span>
+                    <span className="text-sm font-bold text-[#ff3366]">{formatCurrency(stats.despesas)}</span>
                   </div>
                   <div className="flex items-center justify-between border-b border-border pb-4">
                     <span className="text-sm font-medium text-muted-foreground">Saldo</span>
-                    <span className={`text-sm font-bold ${stats.saldo < 0 ? 'neon-red-text' : 'text-foreground'}`}>
+                    <span className={`text-sm font-bold ${stats.saldo < 0 ? 'text-[#ff3366]' : 'text-foreground'}`}>
                       {formatCurrency(stats.saldo)}
                     </span>
                   </div>

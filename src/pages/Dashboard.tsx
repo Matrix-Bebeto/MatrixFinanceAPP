@@ -8,6 +8,9 @@ import { ptBR } from "date-fns/locale"
 
 export function Dashboard() {
   const currentDate = new Date()
+  type PeriodType = 'all' | 'until_today' | 'current_month' | 'last_month' | 'custom'
+  
+  const [periodFilter, setPeriodFilter] = useState<PeriodType>('all')
   const [month, setMonth] = useState((currentDate.getMonth() + 1).toString())
   const [year, setYear] = useState(currentDate.getFullYear().toString())
   const [loading, setLoading] = useState(true)
@@ -26,7 +29,7 @@ export function Dashboard() {
 
   useEffect(() => {
     fetchDashboardData()
-  }, [month, year])
+  }, [periodFilter, month, year])
 
   const fetchDashboardData = async () => {
     setLoading(true)
@@ -34,17 +37,11 @@ export function Dashboard() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
-      const monthIndex = parseInt(month) - 1
-      const yearNum = parseInt(year)
-      const startDate = new Date(yearNum, monthIndex, 1).toISOString()
-      const endDate = new Date(yearNum, monthIndex + 1, 0, 23, 59, 59).toISOString()
-
-      // Buscar transações
+      // Buscar transações com categorias
       const { data: txs, error: txError } = await supabase
         .from('transacoes')
         .select('*, categorias(nome)')
-        .gte('created_at', startDate)
-        .lte('created_at', endDate)
+        .order('created_at', { ascending: false })
 
       if (txError) {
         console.error("Erro ao buscar transações no Dashboard:", txError)
@@ -55,27 +52,86 @@ export function Dashboard() {
       const { data: lembretes, error: remError } = await supabase
         .from('lembretes')
         .select('*')
-        .gte('data', startDate)
-        .lte('data', endDate)
 
       if (remError) {
         console.log("Tentando buscar da tabela 'reminders'...")
         const { data: reminders } = await supabase
           .from('reminders')
           .select('*')
-          .gte('date', startDate)
-          .lte('date', endDate)
         if (reminders) rems = reminders
       } else if (lembretes) {
         rems = lembretes
       }
 
+      const now = new Date()
+
+      // Filtrar transações de acordo com o filtro de período
+      const filteredTxs = (txs || []).filter(tx => {
+        if (periodFilter === 'all') return true
+
+        const rawDateStr = tx.data || tx.data_transacao || tx.created_at
+        if (!rawDateStr) return true
+        const txDate = new Date(rawDateStr)
+
+        if (periodFilter === 'until_today') {
+          const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+          return txDate <= endOfToday
+        }
+
+        if (periodFilter === 'current_month') {
+          return txDate.getMonth() === now.getMonth() && txDate.getFullYear() === now.getFullYear()
+        }
+
+        if (periodFilter === 'last_month') {
+          const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+          return txDate.getMonth() === lastMonthDate.getMonth() && txDate.getFullYear() === lastMonthDate.getFullYear()
+        }
+
+        if (periodFilter === 'custom') {
+          const targetMonthIndex = parseInt(month) - 1
+          const targetYear = parseInt(year)
+          return txDate.getMonth() === targetMonthIndex && txDate.getFullYear() === targetYear
+        }
+
+        return true
+      })
+
+      // Filtrar lembretes
+      const filteredRems = (rems || []).filter(r => {
+        if (periodFilter === 'all') return true
+
+        const rawDateStr = r.data || r.date || r.data_vencimento || r.due_date || r.created_at
+        if (!rawDateStr) return true
+        const rDate = new Date(rawDateStr)
+
+        if (periodFilter === 'until_today') {
+          const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
+          return rDate <= endOfToday
+        }
+
+        if (periodFilter === 'current_month') {
+          return rDate.getMonth() === now.getMonth() && rDate.getFullYear() === now.getFullYear()
+        }
+
+        if (periodFilter === 'last_month') {
+          const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+          return rDate.getMonth() === lastMonthDate.getMonth() && rDate.getFullYear() === lastMonthDate.getFullYear()
+        }
+
+        if (periodFilter === 'custom') {
+          const targetMonthIndex = parseInt(month) - 1
+          const targetYear = parseInt(year)
+          return rDate.getMonth() === targetMonthIndex && rDate.getFullYear() === targetYear
+        }
+
+        return true
+      })
+
       let receitas = 0
       let despesas = 0
       const categoryTotals: Record<string, number> = {}
-      const transactions = txs || []
 
-      transactions.forEach(tx => {
+      filteredTxs.forEach(tx => {
         const valor = Number(tx.valor || tx.amount || 0)
         const tipo = (tx.tipo || tx.type || '').toLowerCase()
         
@@ -96,8 +152,8 @@ export function Dashboard() {
         receitas,
         despesas,
         saldo: receitas - despesas,
-        lembretes: rems.filter(r => r.status !== 'concluido' && r.status !== 'completed').length,
-        transacoesCount: transactions.length
+        lembretes: filteredRems.filter(r => r.status !== 'concluido' && r.status !== 'completed').length,
+        transacoesCount: filteredTxs.length
       })
 
       const formattedBarData = Object.entries(categoryTotals)
@@ -112,7 +168,7 @@ export function Dashboard() {
         { name: "Despesas", value: despesas, color: "#ff3366" },
       ])
 
-      const pendingRems = rems.filter(r => r.status !== 'concluido' && r.status !== 'completed')
+      const pendingRems = filteredRems.filter(r => r.status !== 'concluido' && r.status !== 'completed')
       if (pendingRems.length > 0) {
         const sortedRems = [...pendingRems].sort((a, b) => {
           const dateA = new Date(a.data || a.date || a.data_vencimento || a.due_date).getTime()
@@ -169,36 +225,65 @@ export function Dashboard() {
 
   const years = ["2024", "2025", "2026", "2027"]
 
+  const getPeriodLabel = () => {
+    switch (periodFilter) {
+      case 'all': return 'Até o momento'
+      case 'until_today': return 'Até hoje'
+      case 'current_month': return 'Mês atual'
+      case 'last_month': return 'Último mês'
+      case 'custom':
+        const mLabel = months.find(m => m.value === month)?.label || ''
+        return `${mLabel} de ${year}`
+      default: return 'Até o momento'
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Visão geral das suas finanças pessoais • {stats.transacoesCount} transações encontradas
+            Visão geral das suas finanças • {stats.transacoesCount} transações ({getPeriodLabel().toLowerCase()})
           </p>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Filter className="w-4 h-4 text-muted-foreground mr-1" />
           <select 
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="h-10 px-4 py-2 bg-foreground/5 border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#00ff88] backdrop-blur-md"
+            value={periodFilter}
+            onChange={(e) => setPeriodFilter(e.target.value as any)}
+            className="h-10 px-4 py-2 bg-foreground/5 border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#00ff88] backdrop-blur-md font-medium"
           >
-            {months.map(m => (
-              <option key={m.value} value={m.value} className="bg-card text-foreground">{m.label}</option>
-            ))}
+            <option value="all" className="bg-card text-foreground">Até o momento (Todas)</option>
+            <option value="until_today" className="bg-card text-foreground">Até Hoje</option>
+            <option value="current_month" className="bg-card text-foreground">Mês Atual</option>
+            <option value="last_month" className="bg-card text-foreground">Último Mês</option>
+            <option value="custom" className="bg-card text-foreground">Mês / Ano Específico</option>
           </select>
-          <select 
-            value={year}
-            onChange={(e) => setYear(e.target.value)}
-            className="h-10 px-4 py-2 bg-foreground/5 border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#00ff88] backdrop-blur-md"
-          >
-            {years.map(y => (
-              <option key={y} value={y} className="bg-card text-foreground">{y}</option>
-            ))}
-          </select>
+
+          {periodFilter === 'custom' && (
+            <>
+              <select 
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="h-10 px-4 py-2 bg-foreground/5 border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#00ff88] backdrop-blur-md"
+              >
+                {months.map(m => (
+                  <option key={m.value} value={m.value} className="bg-card text-foreground">{m.label}</option>
+                ))}
+              </select>
+              <select 
+                value={year}
+                onChange={(e) => setYear(e.target.value)}
+                className="h-10 px-4 py-2 bg-foreground/5 border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#00ff88] backdrop-blur-md"
+              >
+                {years.map(y => (
+                  <option key={y} value={y} className="bg-card text-foreground">{y}</option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
 
@@ -221,7 +306,7 @@ export function Dashboard() {
               </CardHeader>
               <CardContent className="relative z-10">
                 <div className="text-3xl font-bold text-[#00ff88]">{formatCurrency(stats.receitas)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Mês selecionado</p>
+                <p className="text-xs text-muted-foreground mt-1">{getPeriodLabel()}</p>
               </CardContent>
             </Card>
             
@@ -237,7 +322,7 @@ export function Dashboard() {
               </CardHeader>
               <CardContent className="relative z-10">
                 <div className="text-3xl font-bold text-[#ff3366]">{formatCurrency(stats.despesas)}</div>
-                <p className="text-xs text-muted-foreground mt-1">Mês selecionado</p>
+                <p className="text-xs text-muted-foreground mt-1">{getPeriodLabel()}</p>
               </CardContent>
             </Card>
             
@@ -245,7 +330,7 @@ export function Dashboard() {
               <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-bl-full -mr-12 -mt-12 transition-transform group-hover:scale-110"></div>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
                 <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Saldo Atual
+                  Saldo Acumulado
                 </CardTitle>
                 <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
                   <DollarSign className="h-4 w-4 text-blue-400" />
@@ -255,7 +340,7 @@ export function Dashboard() {
                 <div className={`text-3xl font-bold ${stats.saldo < 0 ? 'text-[#ff3366]' : 'text-foreground'}`}>
                   {formatCurrency(stats.saldo)}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Receitas - Despesas</p>
+                <p className="text-xs text-muted-foreground mt-1">Receitas - Despesas ({getPeriodLabel().toLowerCase()})</p>
               </CardContent>
             </Card>
 
@@ -271,7 +356,7 @@ export function Dashboard() {
               </CardHeader>
               <CardContent className="relative z-10">
                 <div className="text-3xl font-bold text-purple-400">{stats.lembretes}</div>
-                <p className="text-xs text-muted-foreground mt-1">Mês selecionado</p>
+                <p className="text-xs text-muted-foreground mt-1">{getPeriodLabel()}</p>
               </CardContent>
             </Card>
           </div>
@@ -280,7 +365,7 @@ export function Dashboard() {
             <Card className="col-span-2 glass-card border-none">
               <CardHeader>
                 <CardTitle className="text-lg text-foreground">Gastos por Categoria</CardTitle>
-                <p className="text-sm text-muted-foreground">Distribuição dos seus gastos no período selecionado</p>
+                <p className="text-sm text-muted-foreground">Distribuição dos seus gastos ({getPeriodLabel().toLowerCase()})</p>
               </CardHeader>
               <CardContent className="pl-0">
                 <div className="h-[250px] w-full">

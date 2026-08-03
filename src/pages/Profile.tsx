@@ -34,7 +34,7 @@ export function Profile() {
       
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('id, nome, email, phone, whatsapp, avatar_url')
         .eq('id', user.id)
         .single()
 
@@ -69,7 +69,6 @@ export function Profile() {
     
     try {
       const payload = {
-        id: userId,
         nome: formData.nome,
         phone: formData.phone,
         whatsapp: formData.whatsapp,
@@ -79,7 +78,8 @@ export function Profile() {
 
       const { error } = await supabase
         .from('profiles')
-        .upsert(payload, { onConflict: 'id' })
+        .update(payload)
+        .eq('id', userId)
 
       if (error) throw error
       

@@ -11,7 +11,6 @@ export function Categories() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [itemToDelete, setItemToDelete] = useState<string | number | null>(null)
-  const [isDeletingAll, setIsDeletingAll] = useState(false)
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -208,26 +207,12 @@ export function Categories() {
       const targetCat = data.find(c => c.id === targetCatId)
       const targetName = targetCat ? targetCat.nome : 'Categoria Destino'
 
-      // 1. Atualiza as transações vinculadas às categorias duplicadas
-      const { error: txErr1 } = await supabase
-        .from('transacoes')
-        .update({ category_id: targetCatId })
-        .in('category_id', selectedSourceCatIds)
-
-      if (txErr1) console.warn("Aviso ao atualizar category_id:", txErr1)
-
-      await supabase
-        .from('transacoes')
-        .update({ categoria_id: targetCatId })
-        .in('categoria_id', selectedSourceCatIds)
-
-      // 2. Apaga as categorias duplicadas antigas
-      const { error: deleteErr } = await supabase
-        .from('categorias')
-        .delete()
-        .in('id', selectedSourceCatIds)
-
-      if (deleteErr) throw deleteErr
+      // A função do banco atualiza e remove as duplicadas na mesma transação.
+      const { error: mergeError } = await supabase.rpc('merge_user_categories', {
+        p_target_category_id: String(targetCatId),
+        p_source_category_ids: selectedSourceCatIds.map(String),
+      })
+      if (mergeError) throw mergeError
 
       setMergeSuccess(`Categorias unificadas com sucesso em "${targetName}"! Todas as transações foram atualizadas.`)
       setSelectedSourceCatIds([])
@@ -270,18 +255,11 @@ export function Categories() {
         return
       }
 
-      // Atualiza category_id nas transações
-      const { error: err1 } = await supabase
-        .from('transacoes')
-        .update({ category_id: estTargetCatId })
-        .in('id', txIdsToUpdate)
-
-      if (err1) console.warn("Erro ao atualizar category_id:", err1)
-
-      await supabase
-        .from('transacoes')
-        .update({ categoria_id: estTargetCatId })
-        .in('id', txIdsToUpdate)
+      const { error: assignError } = await supabase.rpc('assign_transactions_category', {
+        p_transaction_ids: txIdsToUpdate.map(Number),
+        p_category_id: String(estTargetCatId),
+      })
+      if (assignError) throw assignError
 
       setEstMergeSuccess(`Sucesso! ${txIdsToUpdate.length} transação(ões) de ${selectedEstNames.length} estabelecimento(s) foram atualizadas para a categoria "${targetCatName}".`)
       setSelectedEstNames([])
@@ -312,24 +290,6 @@ export function Categories() {
     }
   }
 
-  const executeDeleteAll = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
-      setData([]); 
-      setIsDeletingAll(false);
-      
-      const { error } = await supabase.from('categorias').delete().eq('userid', user.id);
-      if (error) {
-        fetchData();
-        throw error;
-      }
-    } catch (e: any) {
-      console.error("Erro ao remover todas:", e);
-      alert("Erro ao remover todas: " + e.message);
-    }
-  }
 
   const openNewModal = () => {
     setEditingItem(null)
@@ -364,7 +324,7 @@ export function Categories() {
       }
 
       if (editingItem) {
-        const { error } = await supabase.from('categorias').update(payload).eq('id', editingItem.id)
+        const { error } = await supabase.from('categorias').update({ nome: payload.nome, tags: payload.tags }).eq('id', editingItem.id)
         if (error) throw error
         setData(data.map(item => item.id === editingItem.id ? { ...item, ...payload } : item))
       } else {
@@ -394,18 +354,6 @@ export function Categories() {
           <p className="text-sm text-muted-foreground mt-1">Organize suas transações por categorias e unifique duplicadas.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isDeletingAll ? (
-            <div className="flex items-center gap-2 bg-red-500/10 p-1 rounded-xl border border-red-500/20 backdrop-blur-md">
-              <span className="text-xs text-[#ff3366] font-medium px-2">Remover todas?</span>
-              <Button onClick={executeDeleteAll} size="sm" className="h-8 bg-[#ff3366] hover:bg-[#ff3366]/90 text-white text-xs rounded-lg">Sim</Button>
-              <Button onClick={() => setIsDeletingAll(false)} variant="outline" size="sm" className="h-8 text-xs border-border text-foreground hover:bg-muted rounded-lg">Não</Button>
-            </div>
-          ) : (
-            <Button onClick={() => setIsDeletingAll(true)} variant="outline" className="text-[#ff3366] border-[#ff3366]/30 bg-[#ff3366]/5 hover:bg-[#ff3366]/10 rounded-xl">
-              <Trash2 className="w-4 h-4 mr-2" />
-              Remover Todas
-            </Button>
-          )}
 
           <Button 
             onClick={() => {

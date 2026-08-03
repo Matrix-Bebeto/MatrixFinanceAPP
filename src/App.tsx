@@ -2,14 +2,14 @@ import { lazy, Suspense, useEffect, useState } from "react"
 import type { Session } from "@supabase/supabase-js"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { supabase } from "./lib/supabase"
-import { Layout } from "./components/Layout"
 import { PageLoader } from "./components/PageLoader"
-import { Login } from "./pages/Login"
-import { ResetPassword } from "./pages/ResetPassword"
-const VisualV2 = lazy(() => import("./pages/VisualV2").then((m) => ({ default: m.VisualV2 })))
-import { NotFound } from "./pages/NotFound"
 
 const Dashboard = lazy(() => import("./pages/Dashboard").then((m) => ({ default: m.Dashboard })))
+const Layout = lazy(() => import("./components/Layout").then((m) => ({ default: m.Layout })))
+const Login = lazy(() => import("./pages/Login").then((m) => ({ default: m.Login })))
+const ResetPassword = lazy(() => import("./pages/ResetPassword").then((m) => ({ default: m.ResetPassword })))
+const VisualV2 = lazy(() => import("./pages/VisualV2").then((m) => ({ default: m.VisualV2 })))
+const NotFound = lazy(() => import("./pages/NotFound").then((m) => ({ default: m.NotFound })))
 const Profile = lazy(() => import("./pages/Profile").then((m) => ({ default: m.Profile })))
 const Plan = lazy(() => import("./pages/Plan").then((m) => ({ default: m.Plan })))
 const Subscription = lazy(() => import("./pages/Subscription").then((m) => ({ default: m.Subscription })))

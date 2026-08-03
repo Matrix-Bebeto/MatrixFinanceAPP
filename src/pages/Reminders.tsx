@@ -1,337 +1,136 @@
-import React, { useState, useEffect } from "react"
-import { supabase } from "@/src/lib/supabase"
-import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card"
+import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { AlertCircle, CalendarDays, CheckCircle2, Clock3, Edit, Loader2, Plus, Search, Trash2, X } from "lucide-react"
 import { Button } from "@/src/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card"
 import { Input } from "@/src/components/ui/input"
-import { Loader2, AlertCircle, Plus, Trash2, Edit, Search, Calendar, Clock, X } from "lucide-react"
-import { format, parseISO } from "date-fns"
-import { ptBR } from "date-fns/locale"
+import { formatDateBR, todayInAppTimeZone } from "@/src/lib/date"
+import { formatCurrency, parseMoney } from "@/src/lib/money"
+import { supabase } from "@/src/lib/supabase"
+import type { Reminder } from "@/src/types/database"
+
+type ReminderForm = { descricao: string; due_date: string; valor: string }
+const emptyForm = (): ReminderForm => ({ descricao: "", due_date: todayInAppTimeZone(), valor: "" })
 
 export function Reminders() {
-  const [data, setData] = useState<any[]>([])
+  const [items, setItems] = useState<Reminder[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [itemToDelete, setItemToDelete] = useState<string | number | null>(null)
-  const [isDeletingAll, setIsDeletingAll] = useState(false)
+  const [search, setSearch] = useState("")
+  const [editing, setEditing] = useState<Reminder | null>(null)
+  const [deleteId, setDeleteId] = useState<number | null>(null)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [form, setForm] = useState<ReminderForm>(emptyForm)
 
-  // Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingItem, setEditingItem] = useState<any>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [formData, setFormData] = useState({
-    descricao: "",
-    data: new Date().toISOString().split('T')[0],
-    valor: ""
-  })
-
-  useEffect(() => {
-    fetchData()
-  }, [])
-
-  async function fetchData() {
+  async function loadReminders() {
     setLoading(true)
     setError(null)
+    const { data, error: queryError } = await supabase
+      .from("lembretes")
+      .select("id, created_at, userid, descricao, data, due_date, valor, hora, status, notificado")
+      .order("due_date", { ascending: true })
+      .limit(500)
+    if (queryError) setError(queryError.message)
+    else setItems(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { void loadReminders() }, [])
+
+  useEffect(() => {
+    if (!dialogOpen) return
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape" && !saving) setDialogOpen(false) }
+    window.addEventListener("keydown", close)
+    return () => window.removeEventListener("keydown", close)
+  }, [dialogOpen, saving])
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("pt-BR")
+    return term ? items.filter((item) => item.descricao?.toLocaleLowerCase("pt-BR").includes(term)) : items
+  }, [items, search])
+
+  function openNew() {
+    setEditing(null)
+    setForm(emptyForm())
+    setDialogOpen(true)
+  }
+
+  function openEdit(item: Reminder) {
+    setEditing(item)
+    setForm({ descricao: item.descricao ?? "", due_date: item.due_date || item.data?.slice(0, 10) || todayInAppTimeZone(), valor: item.valor?.toString() ?? "" })
+    setDialogOpen(true)
+  }
+
+  async function saveReminder(event: FormEvent) {
+    event.preventDefault()
+    setSaving(true)
+    setError(null)
     try {
-      const { data: rems, error: err } = await supabase
-        .from('lembretes')
-        .select('*')
-        .order('data', { ascending: true })
-        .limit(100)
-        
-      if (err) throw new Error(`Erro do Supabase: ${err.message}`)
-      
-      setData(rems || [])
-    } catch (e: any) {
-      console.error("Exceção capturada:", e)
-      setError(e.message || "Ocorreu um erro desconhecido ao buscar os lembretes.")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const executeDelete = async (item: any) => {
-    if (!item || item.id === undefined) return;
-    
-    setData(prevData => prevData.filter(d => d.id !== item.id));
-    setItemToDelete(null);
-    
-    try {
-      const { error } = await supabase.from('lembretes').delete().eq('id', item.id);
-      if (error) {
-        fetchData();
-        throw error;
-      }
-    } catch (e: any) {
-      console.error("Erro ao remover:", e);
-      alert("Erro ao remover: " + e.message);
-    }
-  }
-
-  const executeDeleteAll = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
-      setData([]); 
-      setIsDeletingAll(false);
-      
-      const { error } = await supabase.from('lembretes').delete().eq('userid', user.id);
-      if (error) {
-        fetchData();
-        throw error;
-      }
-    } catch (e: any) {
-      console.error("Erro ao remover todos:", e);
-      alert("Erro ao remover todos: " + e.message);
-    }
-  }
-
-  const openNewModal = () => {
-    setEditingItem(null)
-    setFormData({
-      descricao: "",
-      data: new Date().toISOString().split('T')[0],
-      valor: ""
-    })
-    setIsModalOpen(true)
-  }
-
-  const openEditModal = (item: any) => {
-    setEditingItem(item)
-    setFormData({
-      descricao: item.descricao || "",
-      data: item.data ? item.data.split('T')[0] : new Date().toISOString().split('T')[0],
-      valor: item.valor ? item.valor.toString() : ""
-    })
-    setIsModalOpen(true)
-  }
-
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSaving(true)
-    
-    try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("Usuário não autenticado")
-
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) throw new Error("Sua sessão expirou. Entre novamente.")
       const payload = {
-        descricao: formData.descricao,
-        data: new Date(formData.data).toISOString(),
-        valor: formData.valor ? Number(formData.valor) : null,
-        userid: user.id
+        descricao: form.descricao.trim(),
+        due_date: form.due_date,
+        data: `${form.due_date}T12:00:00`,
+        valor: form.valor.trim() ? parseMoney(form.valor) : null,
+        userid: user.id,
       }
-
-      if (editingItem) {
-        const { error } = await supabase.from('lembretes').update(payload).eq('id', editingItem.id)
-        if (error) throw error
-        setData(data.map(item => item.id === editingItem.id ? { ...item, ...payload } : item))
+      if (editing) {
+        const { error: updateError } = await supabase.from("lembretes").update({ descricao: payload.descricao, due_date: payload.due_date, data: payload.data, valor: payload.valor }).eq("id", editing.id)
+        if (updateError) throw updateError
       } else {
-        const { data: newItem, error } = await supabase.from('lembretes').insert([payload]).select().single()
-        if (error) throw error
-        if (newItem) setData([...data, newItem].sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime()))
+        const { error: insertError } = await supabase.from("lembretes").insert([payload])
+        if (insertError) throw insertError
       }
-      
-      setIsModalOpen(false)
-    } catch (e: any) {
-      alert("Erro ao salvar: " + e.message)
+      setDialogOpen(false)
+      await loadReminders()
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Não foi possível salvar o lembrete.")
     } finally {
-      setIsSaving(false)
+      setSaving(false)
     }
   }
 
-  const filteredData = data.filter(item => {
-    const title = (item.descricao || '').toLowerCase()
-    return title.includes(searchTerm.toLowerCase())
-  })
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return ""
-    try {
-      const cleanDate = dateString.split('T')[0]
-      const parts = cleanDate.split('-')
-      if (parts.length === 3) {
-        const [year, month, day] = parts
-        if (year.length === 4) {
-          return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`
-        }
-      }
-      return format(parseISO(dateString), "dd/MM/yyyy", { locale: ptBR })
-    } catch (e) {
-      return dateString
-    }
+  async function toggleCompleted(item: Reminder) {
+    const nextStatus = item.status === "concluido" ? "pendente" : "concluido"
+    const previous = items
+    setItems((current) => current.map((candidate) => candidate.id === item.id ? { ...candidate, status: nextStatus } : candidate))
+    const { error: updateError } = await supabase.from("lembretes").update({ status: nextStatus }).eq("id", item.id)
+    if (updateError) { setItems(previous); setError(updateError.message) }
   }
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+  async function removeReminder(id: number) {
+    const previous = items
+    setItems((current) => current.filter((item) => item.id !== id))
+    setDeleteId(null)
+    const { error: deleteError } = await supabase.from("lembretes").delete().eq("id", id)
+    if (deleteError) { setItems(previous); setError(deleteError.message) }
   }
 
   return (
-    <div className="space-y-6 relative">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Lembretes</h1>
-          <p className="text-sm text-muted-foreground mt-1">Gerencie seus lembretes e contas a pagar/receber.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isDeletingAll ? (
-            <div className="flex items-center gap-2 bg-red-500/10 p-1 rounded-xl border border-red-500/20 backdrop-blur-md">
-              <span className="text-xs text-[#ff3366] font-medium px-2">Remover todos?</span>
-              <Button onClick={executeDeleteAll} size="sm" className="h-8 bg-[#ff3366] hover:bg-[#ff3366]/90 text-white text-xs rounded-lg">Sim</Button>
-              <Button onClick={() => setIsDeletingAll(false)} variant="outline" size="sm" className="h-8 text-xs border-border text-foreground hover:bg-muted rounded-lg">Não</Button>
-            </div>
-          ) : (
-            <Button onClick={() => setIsDeletingAll(true)} variant="outline" className="text-[#ff3366] border-[#ff3366]/30 bg-[#ff3366]/5 hover:bg-[#ff3366]/10 rounded-xl">
-              <Trash2 className="w-4 h-4 mr-2" />
-              Remover Todos
-            </Button>
-          )}
-          <Button onClick={openNewModal} className="bg-[#00ff88] hover:bg-[#00ff88]/90 text-black font-semibold rounded-xl shadow-[0_0_15px_rgba(0,255,136,0.3)]">
-            <Plus className="w-4 h-4 mr-2" />
-            Novo Lembrete
-          </Button>
-        </div>
+    <div className="space-y-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div><h1 className="text-3xl font-bold">Lembretes</h1><p className="mt-1 text-sm text-muted-foreground">Acompanhe vencimentos sem colocar seus registros em risco.</p></div>
+        <Button onClick={openNew} className="rounded-xl bg-[#00ff88] font-semibold text-black hover:bg-[#00e87b]"><Plus className="mr-2 h-4 w-4" aria-hidden="true" />Novo lembrete</Button>
+      </header>
+
+      {error && <div role="alert" className="flex items-start gap-2 rounded-xl border border-[#ff3366]/20 bg-[#ff3366]/10 p-4 text-sm text-[#d91d51] dark:text-[#ff6690]"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>{error}</span><button className="ml-auto underline" onClick={() => setError(null)}>Fechar</button></div>}
+
+      <div className="glass-panel rounded-2xl p-4">
+        <label htmlFor="reminder-search" className="sr-only">Pesquisar lembretes</label>
+        <div className="relative max-w-lg"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input id="reminder-search" type="search" placeholder="Pesquisar lembretes..." className="rounded-xl pl-9" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between glass-panel p-4 rounded-2xl">
-        <div className="relative w-full sm:w-96">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Pesquisar lembretes..." 
-            className="pl-9 bg-foreground/5 border-border text-foreground rounded-xl focus-visible:ring-[#00ff88]"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-      </div>
-      
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {loading ? (
-          <div className="col-span-full flex justify-center items-center py-20 glass-panel rounded-2xl">
-            <Loader2 className="h-8 w-8 animate-spin text-[#00ff88]" />
-          </div>
-        ) : error ? (
-          <div className="col-span-full p-8 text-center flex flex-col items-center justify-center text-[#ff3366] glass-panel rounded-2xl">
-            <AlertCircle className="h-10 w-10 mb-2 opacity-50" />
-            <p>{error}</p>
-          </div>
-        ) : filteredData.length === 0 ? (
-          <div className="col-span-full p-12 text-center text-muted-foreground glass-panel rounded-2xl">
-            Nenhum lembrete encontrado.
-          </div>
-        ) : (
-          filteredData.map((item, index) => {
-            const title = item.descricao || 'Sem descrição'
-            const date = item.data
-            const valor = Number(item.valor || 0)
-
-            return (
-              <Card key={item.id || index} className="glass-card border-none overflow-hidden group hover:bg-white/[0.02] transition-colors">
-                <div className="p-5 flex flex-col h-full justify-between gap-4">
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <h3 className="font-semibold text-base text-foreground">
-                        {title}
-                      </h3>
-                      <span className="shrink-0 text-[10px] uppercase font-bold px-2 py-0.5 rounded-full flex items-center gap-1 bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
-                        <Clock className="w-3 h-3" />
-                        Pendente
-                      </span>
-                    </div>
-                    <div className="text-sm text-muted-foreground space-y-1.5">
-                      <p className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-blue-400" />
-                        {formatDate(date)}
-                      </p>
-                      {valor > 0 && (
-                        <p className="font-medium text-[#00ff88] mt-2">
-                          {formatCurrency(valor)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-end gap-2 pt-4 border-t border-border mt-2">
-                    {itemToDelete === item.id ? (
-                      <div className="flex gap-2 items-center bg-red-500/10 p-1 rounded-lg border border-red-500/20">
-                        <Button onClick={() => executeDelete(item)} size="sm" className="h-8 bg-[#ff3366] hover:bg-[#ff3366]/90 text-white px-2 text-xs rounded-md">Confirmar</Button>
-                        <Button onClick={() => setItemToDelete(null)} variant="outline" size="sm" className="h-8 px-2 text-xs border-border text-foreground hover:bg-muted rounded-md">Cancelar</Button>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button onClick={() => openEditModal(item)} variant="outline" size="sm" className="h-8 w-8 p-0 text-blue-400 border-blue-400/30 bg-blue-400/10 hover:bg-blue-400/20 hover:text-blue-300 rounded-lg">
-                          <Edit className="w-4 h-4"/>
-                        </Button>
-                        <Button onClick={() => setItemToDelete(item.id)} variant="outline" size="sm" className="h-8 w-8 p-0 text-[#ff3366] border-[#ff3366]/30 bg-[#ff3366]/10 hover:bg-[#ff3366]/20 hover:text-[#ff3366] rounded-lg">
-                          <Trash2 className="w-4 h-4"/>
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            )
-          })
-        )}
-      </div>
-
-      {/* Modal Overlay */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-md shadow-2xl glass-card border-border animate-in fade-in zoom-in duration-200">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-border pb-4">
-              <CardTitle className="text-foreground">{editingItem ? 'Editar Lembrete' : 'Novo Lembrete'}</CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setIsModalOpen(false)} className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted">
-                <X className="h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <form onSubmit={handleSave} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Descrição</label>
-                  <Input 
-                    required
-                    value={formData.descricao}
-                    onChange={(e) => setFormData({...formData, descricao: e.target.value})}
-                    placeholder="Ex: Pagar conta de luz..."
-                    className="bg-foreground/5 border-border text-foreground rounded-xl focus-visible:ring-[#00ff88]"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Data</label>
-                    <Input 
-                      required
-                      type="date"
-                      value={formData.data}
-                      onChange={(e) => setFormData({...formData, data: e.target.value})}
-                      className="bg-foreground/5 border-border text-foreground rounded-xl focus-visible:ring-[#00ff88] [color-scheme:dark]"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Valor (Opcional)</label>
-                    <Input 
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.valor}
-                      onChange={(e) => setFormData({...formData, valor: e.target.value})}
-                      placeholder="0.00"
-                      className="bg-foreground/5 border-border text-foreground rounded-xl focus-visible:ring-[#00ff88]"
-                    />
-                  </div>
-                </div>
-                <div className="pt-4 flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="rounded-xl border-border text-foreground hover:bg-muted">Cancelar</Button>
-                  <Button type="submit" disabled={isSaving} className="rounded-xl bg-[#00ff88] hover:bg-[#00ff88]/90 text-black font-semibold shadow-[0_0_15px_rgba(0,255,136,0.3)]">
-                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    {editingItem ? 'Salvar' : 'Criar'}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
+      {loading ? <div className="flex justify-center py-20" role="status"><Loader2 className="h-8 w-8 animate-spin text-[#00ff88]" /><span className="sr-only">Carregando</span></div> : filtered.length === 0 ? <div className="glass-panel rounded-2xl p-12 text-center text-muted-foreground">Nenhum lembrete encontrado.</div> : (
+        <section className="grid gap-5 md:grid-cols-2 lg:grid-cols-3" aria-label="Lista de lembretes">
+          {filtered.map((item) => {
+            const completed = item.status === "concluido"
+            return <Card key={item.id} className={`glass-card border-none ${completed ? "opacity-70" : ""}`}><CardHeader className="pb-3"><div className="flex items-start justify-between gap-3"><CardTitle className={`text-base ${completed ? "line-through" : ""}`}>{item.descricao || "Sem descrição"}</CardTitle><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${completed ? "border-[#00ff88]/20 bg-[#00ff88]/10 text-[#00aa5c] dark:text-[#00ff88]" : "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>{completed ? "Concluído" : "Pendente"}</span></div></CardHeader><CardContent className="space-y-4"><div className="space-y-2 text-sm text-muted-foreground"><p className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-blue-400" aria-hidden="true" />{formatDateBR(item.due_date)}</p>{item.valor !== null && <p className="font-semibold text-foreground">{formatCurrency(item.valor)}</p>}</div><div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4"><Button size="sm" variant="outline" onClick={() => void toggleCompleted(item)} aria-label={completed ? "Reabrir lembrete" : "Concluir lembrete"}><CheckCircle2 className="h-4 w-4" aria-hidden="true" /></Button><Button size="sm" variant="outline" onClick={() => openEdit(item)} aria-label="Editar lembrete"><Edit className="h-4 w-4" aria-hidden="true" /></Button>{deleteId === item.id ? <><Button size="sm" onClick={() => void removeReminder(item.id)} className="bg-[#ff3366] text-white">Confirmar</Button><Button size="sm" variant="outline" onClick={() => setDeleteId(null)}>Cancelar</Button></> : <Button size="sm" variant="outline" onClick={() => setDeleteId(item.id)} aria-label="Excluir lembrete"><Trash2 className="h-4 w-4 text-[#ff3366]" aria-hidden="true" /></Button>}</div></CardContent></Card>
+          })}
+        </section>
       )}
+
+      {dialogOpen && <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4" role="dialog" aria-modal="true" aria-labelledby="reminder-dialog-title"><Card className="glass-card w-full max-w-lg"><CardHeader className="flex flex-row items-center justify-between"><CardTitle id="reminder-dialog-title">{editing ? "Editar lembrete" : "Novo lembrete"}</CardTitle><Button size="sm" variant="ghost" aria-label="Fechar" onClick={() => setDialogOpen(false)} disabled={saving}><X className="h-4 w-4" /></Button></CardHeader><CardContent><form onSubmit={saveReminder} className="space-y-4"><div className="space-y-2"><label htmlFor="reminder-description" className="text-sm font-medium">Descrição</label><Input id="reminder-description" required maxLength={180} value={form.descricao} onChange={(event) => setForm({ ...form, descricao: event.target.value })} /></div><div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><label htmlFor="reminder-date" className="text-sm font-medium">Vencimento</label><Input id="reminder-date" required type="date" value={form.due_date} onChange={(event) => setForm({ ...form, due_date: event.target.value })} /></div><div className="space-y-2"><label htmlFor="reminder-value" className="text-sm font-medium">Valor (opcional)</label><Input id="reminder-value" type="number" inputMode="decimal" min="0" step="0.01" value={form.valor} onChange={(event) => setForm({ ...form, valor: event.target.value })} /></div></div><div className="flex justify-end gap-2 pt-3"><Button type="button" variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancelar</Button><Button disabled={saving} className="bg-[#00ff88] text-black hover:bg-[#00e87b]">{saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Clock3 className="mr-2 h-4 w-4" />}{saving ? "Salvando..." : "Salvar"}</Button></div></form></CardContent></Card></div>}
     </div>
   )
 }

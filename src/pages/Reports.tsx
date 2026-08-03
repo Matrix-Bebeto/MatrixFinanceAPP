@@ -6,18 +6,18 @@ import { Loader2, AlertCircle, Download, Filter, ArrowUpRight, ArrowDownRight, D
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts"
 import { format, parseISO, startOfMonth, endOfMonth, subMonths } from "date-fns"
 import { ptBR } from "date-fns/locale"
-import jsPDF from "jspdf"
-import autoTable from "jspdf-autotable"
+import { todayInAppTimeZone } from "@/src/lib/date"
+import type { TransactionWithCategory } from "@/src/types/database"
 
 export function Reports() {
   const [activeTab, setActiveTab] = useState<"visao_geral" | "gastos_totais">("visao_geral")
-  const [data, setData] = useState<any[]>([])
+  const [data, setData] = useState<TransactionWithCategory[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   
   const [period, setPeriod] = useState("este_mes")
   const [customStartDate, setCustomStartDate] = useState("2025-01-01")
-  const [customEndDate, setCustomEndDate] = useState(new Date().toISOString().split('T')[0])
+  const [customEndDate, setCustomEndDate] = useState(todayInAppTimeZone())
   const [type, setType] = useState("todos")
   const [category, setCategory] = useState("todas")
   const [availableCategories, setAvailableCategories] = useState<string[]>([])
@@ -31,32 +31,32 @@ export function Reports() {
     setLoading(true)
     setError(null)
     try {
-      let startDate = new Date()
-      let endDate = new Date()
+      let startDate = todayInAppTimeZone()
+      let endDate = todayInAppTimeZone()
 
       if (period === "este_mes") {
-        startDate = startOfMonth(new Date())
-        endDate = endOfMonth(new Date())
+        startDate = format(startOfMonth(new Date()), "yyyy-MM-dd")
+        endDate = format(endOfMonth(new Date()), "yyyy-MM-dd")
       } else if (period === "mes_passado") {
         const lastMonth = subMonths(new Date(), 1)
-        startDate = startOfMonth(lastMonth)
-        endDate = endOfMonth(lastMonth)
+        startDate = format(startOfMonth(lastMonth), "yyyy-MM-dd")
+        endDate = format(endOfMonth(lastMonth), "yyyy-MM-dd")
       } else if (period === "ultimos_3_meses") {
-        startDate = startOfMonth(subMonths(new Date(), 2))
-        endDate = endOfMonth(new Date())
+        startDate = format(startOfMonth(subMonths(new Date(), 2)), "yyyy-MM-dd")
+        endDate = format(endOfMonth(new Date()), "yyyy-MM-dd")
       } else if (period === "este_ano") {
-        startDate = new Date(new Date().getFullYear(), 0, 1)
-        endDate = new Date(new Date().getFullYear(), 11, 31, 23, 59, 59)
+        startDate = `${new Date().getFullYear()}-01-01`
+        endDate = `${new Date().getFullYear()}-12-31`
       } else if (period === "personalizado") {
-        startDate = new Date(customStartDate + "T00:00:00")
-        endDate = new Date(customEndDate + "T23:59:59")
+        startDate = customStartDate
+        endDate = customEndDate
       }
 
       const { data: txs, error: err } = await supabase
         .from('transacoes')
         .select('*, categorias(nome)')
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString())
+        .gte('transaction_date', startDate)
+        .lte('transaction_date', endDate)
         .order('created_at', { ascending: false })
         
       if (err) {
@@ -84,11 +84,11 @@ export function Reports() {
 
   // Filtragem local por tipo, categoria e busca
   const filteredData = data.filter(item => {
-    const valor = Number(item.valor || item.amount || 0)
-    const itemTipo = (item.tipo || item.type || '').toLowerCase()
-    const isReceita = itemTipo === 'receita' || itemTipo === 'income' || (valor > 0 && itemTipo !== 'despesa' && itemTipo !== 'expense')
+    const valor = Number(item.valor)
+    const itemTipo = item.tipo
+    const isReceita = itemTipo === 'receita'
     const itemCategory = item.categorias?.nome || 'Outros'
-    const title = (item.estabelecimento || item.descricao || item.description || item.nome || '').toLowerCase()
+    const title = (item.estabelecimento || item.detalhes || '').toLowerCase()
 
     if (type === "receitas" && !isReceita) return false
     if (type === "despesas" && isReceita) return false
@@ -104,9 +104,9 @@ export function Reports() {
   const categoryStats: Record<string, { receitas: number, despesas: number }> = {}
 
   filteredData.forEach(item => {
-    const valor = Number(item.valor || item.amount || 0)
-    const itemTipo = (item.tipo || item.type || '').toLowerCase()
-    const isReceita = itemTipo === 'receita' || itemTipo === 'income' || (valor > 0 && itemTipo !== 'despesa' && itemTipo !== 'expense')
+    const valor = Number(item.valor)
+    const itemTipo = item.tipo
+    const isReceita = itemTipo === 'receita'
     const catName = item.categorias?.nome || 'Outros'
 
     if (!categoryStats[catName]) {
@@ -137,15 +137,15 @@ export function Reports() {
 
   // Apenas Despesas para a Aba "Gastos Totais"
   const expenseData = data.filter(item => {
-    const valor = Number(item.valor || item.amount || 0)
-    const itemTipo = (item.tipo || item.type || '').toLowerCase()
-    const isReceita = itemTipo === 'receita' || itemTipo === 'income' || (valor > 0 && itemTipo !== 'despesa' && itemTipo !== 'expense')
+    const valor = Number(item.valor)
+    const itemTipo = item.tipo
+    const isReceita = itemTipo === 'receita'
     return !isReceita
   })
 
   const filteredExpenses = expenseData.filter(item => {
     const itemCategory = item.categorias?.nome || 'Outros'
-    const title = (item.estabelecimento || item.descricao || item.description || item.nome || '').toLowerCase()
+    const title = (item.estabelecimento || item.detalhes || '').toLowerCase()
 
     if (category !== "todas" && itemCategory !== category) return false
     if (searchTerm && !title.includes(searchTerm.toLowerCase()) && !itemCategory.toLowerCase().includes(searchTerm.toLowerCase())) return false
@@ -154,11 +154,11 @@ export function Reports() {
   })
 
   // Agrupamento e Soma de Gastos Totais por Categoria
-  const categoryExpenseTotals: Record<string, { total: number, count: number, items: any[] }> = {}
+  const categoryExpenseTotals: Record<string, { total: number, count: number, items: TransactionWithCategory[] }> = {}
   let totalGastosGeral = 0
 
   expenseData.forEach(item => {
-    const valor = Math.abs(Number(item.valor || item.amount || 0))
+    const valor = Math.abs(Number(item.valor))
     const catName = item.categorias?.nome || 'Outros'
     totalGastosGeral += valor
 
@@ -171,9 +171,9 @@ export function Reports() {
   })
 
   // Gastos filtrados selecionados
-  const totalGastosFiltrados = filteredExpenses.reduce((acc, curr) => acc + Math.abs(Number(curr.valor || curr.amount || 0)), 0)
+  const totalGastosFiltrados = filteredExpenses.reduce((acc, curr) => acc + Math.abs(Number(curr.valor)), 0)
   const mediaGastosFiltrados = filteredExpenses.length > 0 ? totalGastosFiltrados / filteredExpenses.length : 0
-  const maiorGastoFiltrado = filteredExpenses.length > 0 ? Math.max(...filteredExpenses.map(i => Math.abs(Number(i.valor || i.amount || 0)))) : 0
+  const maiorGastoFiltrado = filteredExpenses.length > 0 ? Math.max(...filteredExpenses.map(i => Math.abs(Number(i.valor)))) : 0
 
   // Categorias Ordenadas por Maior Gasto
   const sortedCategoriesExpense = Object.entries(categoryExpenseTotals)
@@ -217,7 +217,8 @@ export function Reports() {
     }
   }
 
-  const generatePDF = () => {
+  const generatePDF = async () => {
+    const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")])
     const doc = new jsPDF()
     
     // Title
@@ -244,12 +245,12 @@ export function Reports() {
     doc.text("Transações", 14, 86)
 
     const tableData = (activeTab === "gastos_totais" ? filteredExpenses : filteredData).map(item => {
-      const title = item.estabelecimento || item.descricao || item.description || item.nome || 'Sem título'
-      const valor = Number(item.valor || item.amount || 0)
-      const itemTipo = (item.tipo || item.type || '').toLowerCase()
-      const isReceita = itemTipo === 'receita' || itemTipo === 'income' || (valor > 0 && itemTipo !== 'despesa' && itemTipo !== 'expense')
+      const title = item.estabelecimento || item.detalhes || 'Sem título'
+      const valor = Number(item.valor)
+      const itemTipo = item.tipo
+      const isReceita = itemTipo === 'receita'
       const cat = item.categorias?.nome || 'Outros'
-      const date = item.data || item.date || item.created_at
+      const date = item.transaction_date
 
       return [
         formatDate(date),
@@ -483,14 +484,14 @@ export function Reports() {
                           outerRadius={100}
                           dataKey="value"
                           stroke="none"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}
                           labelLine={false}
                         >
                           {pieData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(18,20,24,0.9)', color: '#fff' }} />
+                        <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(18,20,24,0.9)', color: '#fff' }} />
                       </PieChart>
                     </ResponsiveContainer>
                   ) : (
@@ -519,7 +520,7 @@ export function Reports() {
                           textAnchor="end"
                         />
                         <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#8E9299' }} tickFormatter={(val) => `R$ ${val}`} />
-                        <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} formatter={(value: number) => formatCurrency(value)} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(18,20,24,0.9)', color: '#fff' }} />
+                        <Tooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} formatter={(value) => formatCurrency(Number(value ?? 0))} contentStyle={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', backgroundColor: 'rgba(18,20,24,0.9)', color: '#fff' }} />
                         <Legend wrapperStyle={{ paddingTop: '20px' }} />
                         <Bar dataKey="Receitas" fill="#00ff88" radius={[4, 4, 0, 0]} maxBarSize={40} />
                         <Bar dataKey="Despesas" fill="#ff3366" radius={[4, 4, 0, 0]} maxBarSize={40} />
@@ -554,12 +555,12 @@ export function Reports() {
                   <tbody>
                     {filteredData.length > 0 ? (
                       filteredData.map((item, index) => {
-                        const title = item.estabelecimento || item.descricao || item.description || item.nome || 'Sem título'
-                        const valor = Number(item.valor || item.amount || 0)
-                        const itemTipo = (item.tipo || item.type || '').toLowerCase()
-                        const isReceita = itemTipo === 'receita' || itemTipo === 'income' || (valor > 0 && itemTipo !== 'despesa' && itemTipo !== 'expense')
+                        const title = item.estabelecimento || item.detalhes || 'Sem título'
+                        const valor = Number(item.valor)
+                        const itemTipo = item.tipo
+                        const isReceita = itemTipo === 'receita'
                         const cat = item.categorias?.nome || 'Outros'
-                        const date = item.data || item.date || item.created_at
+                        const date = item.transaction_date
 
                         return (
                           <tr key={item.id || index} className="border-b border-border hover:bg-foreground/5 transition-colors">
@@ -727,10 +728,10 @@ export function Reports() {
                   <tbody>
                     {filteredExpenses.length > 0 ? (
                       filteredExpenses.map((item, index) => {
-                        const title = item.estabelecimento || item.descricao || item.description || item.nome || 'Sem título'
-                        const valor = Math.abs(Number(item.valor || item.amount || 0))
+                        const title = item.estabelecimento || item.detalhes || 'Sem título'
+                        const valor = Math.abs(Number(item.valor))
                         const cat = item.categorias?.nome || 'Outros'
-                        const date = item.data || item.date || item.created_at
+                        const date = item.transaction_date
                         const share = totalGastosFiltrados > 0 ? (valor / totalGastosFiltrados) * 100 : 0
 
                         return (

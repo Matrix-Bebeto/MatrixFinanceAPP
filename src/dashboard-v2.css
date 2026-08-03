@@ -1,0 +1,40 @@
+.mf-app-v2__filters {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mf-app-v2__custom-period {
+  display: flex;
+  gap: 8px;
+}
+
+.mf-app-v2__custom-period select {
+  height: 42px;
+  border: 1px solid var(--v2-border);
+  border-radius: 12px;
+  padding: 0 11px;
+  background: var(--v2-card);
+  color: var(--v2-text);
+  font-size: 12px;
+}
+
+.mf-app-v2 .mf-v2__transaction > a {
+  width: 26px;
+  height: 26px;
+  color: var(--v2-muted);
+  display: grid;
+  place-items: center;
+}
+
+.mf-app-v2 .mf-v2__transaction > a:hover { color: var(--v2-text); }
+.mf-app-v2 .mf-v2__transaction > a svg { width: 14px; }
+
+@media (max-width: 580px) {
+  .mf-app-v2__filters { justify-content: flex-start; }
+  .mf-app-v2__custom-period { width: 100%; }
+  .mf-app-v2__custom-period select { flex: 1; min-width: 0; }
+  .mf-app-v2 .mf-v2__transaction > a { display: none; }
+}

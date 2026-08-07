@@ -1,15 +1,15 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
-import { Layout } from "./components/Layout"
-import { Login } from "./pages/Login"
-import { Dashboard } from "./pages/Dashboard"
-import { Profile } from "./pages/Profile"
-import { Plan } from "./pages/Plan"
-import { Subscription } from "./pages/Subscription"
-import { Transactions } from "./pages/Transactions"
-import { Categories } from "./pages/Categories"
-import { Reports } from "./pages/Reports"
-import { Reminders } from "./pages/Reminders"
-import { useEffect, useState } from "react"
+import { HashRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { Layout } from "./components/Layout";
+import { Login } from "./pages/Login";
+import { Dashboard } from "./pages/Dashboard";
+import { Profile } from "./pages/Profile";
+import { Plan } from "./pages/Plan";
+import { Subscription } from "./pages/Subscription";
+import { Transactions } from "./pages/Transactions";
+import { Categories } from "./pages/Categories";
+import { Reports } from "./pages/Reports";
+import { Reminders } from "./pages/Reminders";
+import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabase"
 
 export default function App() {
@@ -43,7 +43,7 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/login" element={!session ? <Login /> : <Navigate to="/" />} />
-        
+
         <Route element={session ? <Layout /> : <Navigate to="/login" />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/transactions" element={<Transactions />} />

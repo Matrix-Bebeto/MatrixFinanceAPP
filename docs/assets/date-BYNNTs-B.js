@@ -1,0 +1,1 @@
+const a="America/Fortaleza";function i(t=new Date){return new Intl.DateTimeFormat("en-CA",{timeZone:a,year:"numeric",month:"2-digit",day:"2-digit"}).format(t)}function o(t){if(!t)return"";const[e,n,r]=t.slice(0,10).split("-");return e?.length===4&&n&&r?`${r}/${n}/${e}`:t}export{o as f,i as t};

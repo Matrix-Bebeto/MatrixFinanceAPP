@@ -1,465 +1,136 @@
-import React, { useState, useEffect } from "react"
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react"
+import { AlertCircle, DollarSign, Edit, Loader2, Plus, Search, Trash2, TrendingDown, TrendingUp, X } from "lucide-react"
 import { supabase } from "@/src/lib/supabase"
+import { todayInAppTimeZone, formatDateBR } from "@/src/lib/date"
+import { formatCurrency, parseMoney } from "@/src/lib/money"
+import type { Category, TransactionWithCategory } from "@/src/types/database"
 import { Card, CardContent, CardHeader, CardTitle } from "@/src/components/ui/card"
 import { Button } from "@/src/components/ui/button"
 import { Input } from "@/src/components/ui/input"
-import { Loader2, AlertCircle, Plus, Trash2, Edit, Search, Filter, TrendingDown, TrendingUp, DollarSign, X } from "lucide-react"
-import { format, parseISO } from "date-fns"
-import { ptBR } from "date-fns/locale"
+
+const PAGE_SIZE = 50
+type TransactionForm = { estabelecimento: string; valor: string; tipo: "receita" | "despesa"; category_id: string; detalhes: string; transaction_date: string }
+const emptyForm = (): TransactionForm => ({ estabelecimento: "", valor: "", tipo: "despesa", category_id: "", detalhes: "", transaction_date: todayInAppTimeZone() })
 
 export function Transactions() {
-  const [data, setData] = useState<any[]>([])
-  const [categories, setCategories] = useState<any[]>([])
+  const [data, setData] = useState<TransactionWithCategory[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [summary, setSummary] = useState({ receitas: 0, despesas: 0, saldo: 0, total_count: 0 })
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [itemToDelete, setItemToDelete] = useState<string | number | null>(null)
-  const [isDeletingAll, setIsDeletingAll] = useState(false)
-
-  // Modal state
+  const [itemToDelete, setItemToDelete] = useState<number | null>(null)
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingItem, setEditingItem] = useState<any>(null)
+  const [editingItem, setEditingItem] = useState<TransactionWithCategory | null>(null)
   const [isSaving, setIsSaving] = useState(false)
-  const [formData, setFormData] = useState({
-    estabelecimento: "",
-    valor: "",
-    tipo: "despesa",
-    category_id: "",
-    detalhes: "",
-    created_at: new Date().toISOString().split('T')[0]
-  })
+  const [formData, setFormData] = useState(emptyForm)
 
-  useEffect(() => {
-    fetchData()
+  const loadSummary = useCallback(async () => {
+    const { data: totals, error: summaryError } = await supabase.rpc("get_transaction_summary", {})
+    if (summaryError) throw summaryError
+    const total = totals?.[0]
+    setSummary({ receitas: Number(total?.receitas ?? 0), despesas: Number(total?.despesas ?? 0), saldo: Number(total?.saldo ?? 0), total_count: Number(total?.total_count ?? 0) })
   }, [])
 
-  async function fetchData() {
-    setLoading(true)
-    setError(null)
+  const loadPage = useCallback(async (cursor?: number) => {
+    let query = supabase.from("transacoes").select("*, categorias(nome)").order("id", { ascending: false }).limit(PAGE_SIZE)
+    if (cursor) query = query.lt("id", cursor)
+    const { data: rows, error: queryError } = await query
+    if (queryError) throw queryError
+    const typedRows = (rows ?? []) as unknown as TransactionWithCategory[]
+    setData((current) => cursor ? [...current, ...typedRows] : typedRows)
+    setHasMore(typedRows.length === PAGE_SIZE)
+  }, [])
+
+  const refresh = useCallback(async () => {
+    setLoading(true); setError(null)
     try {
-      // Fetch categories for the dropdown
-      const { data: cats } = await supabase.from('categorias').select('*').order('nome')
-      if (cats) setCategories(cats)
+      const [{ data: cats, error: categoryError }] = await Promise.all([
+        supabase.from("categorias").select("*").order("nome"),
+        loadPage(),
+        loadSummary(),
+      ])
+      if (categoryError) throw categoryError
+      setCategories(cats ?? [])
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Não foi possível carregar as transações.")
+    } finally { setLoading(false) }
+  }, [loadPage, loadSummary])
 
-      const { data: txs, error: err } = await supabase
-        .from('transacoes')
-        .select('*, categorias(nome)')
-        .order('created_at', { ascending: false })
-        .limit(100)
-        
-      if (err) {
-        console.error("Erro ao buscar transações:", err)
-        throw new Error(`Erro do Supabase: ${err.message}`)
-      }
-      
-      setData(txs || [])
-    } catch (e: any) {
-      console.error("Exceção capturada:", e)
-      setError(e.message || "Ocorreu um erro desconhecido ao buscar as transações.")
-    } finally {
-      setLoading(false)
-    }
-  }
+  useEffect(() => { void refresh() }, [refresh])
+  useEffect(() => {
+    if (!isModalOpen) return
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape" && !isSaving) setIsModalOpen(false) }
+    window.addEventListener("keydown", close)
+    return () => window.removeEventListener("keydown", close)
+  }, [isModalOpen, isSaving])
 
-  const executeDelete = async (item: any) => {
-    if (!item || item.id === undefined) return;
-    
-    setData(prevData => prevData.filter(d => d.id !== item.id));
-    setItemToDelete(null);
-    
-    try {
-      const { error } = await supabase.from('transacoes').delete().eq('id', item.id);
-      if (error) {
-        fetchData();
-        throw error;
-      }
-    } catch (e: any) {
-      console.error("Erro ao remover:", e);
-      alert("Erro ao remover: " + e.message);
-    }
-  }
+  const filteredData = useMemo(() => {
+    const term = searchTerm.trim().toLocaleLowerCase("pt-BR")
+    if (!term) return data
+    return data.filter((item) => [item.estabelecimento, item.detalhes, item.categorias?.nome].some((value) => value?.toLocaleLowerCase("pt-BR").includes(term)))
+  }, [data, searchTerm])
 
-  const executeDeleteAll = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
-
-      setData([]); 
-      setIsDeletingAll(false);
-      
-      const { error } = await supabase.from('transacoes').delete().eq('userid', user.id);
-      if (error) {
-        fetchData();
-        throw error;
-      }
-    } catch (e: any) {
-      console.error("Erro ao remover todas:", e);
-      alert("Erro ao remover todas: " + e.message);
-    }
-  }
-
-  const openNewModal = () => {
+  function openNewModal() {
     setEditingItem(null)
-    setFormData({
-      estabelecimento: "",
-      valor: "",
-      tipo: "despesa",
-      category_id: categories.length > 0 ? categories[0].id : "",
-      detalhes: "",
-      created_at: new Date().toISOString().split('T')[0]
-    })
+    setFormData({ ...emptyForm(), category_id: categories[0]?.id ?? "" })
     setIsModalOpen(true)
   }
 
-  const openEditModal = (item: any) => {
+  function openEditModal(item: TransactionWithCategory) {
     setEditingItem(item)
-    setFormData({
-      estabelecimento: item.estabelecimento || "",
-      valor: item.valor ? Math.abs(item.valor).toString() : "",
-      tipo: (item.tipo || "despesa").toLowerCase(),
-      category_id: item.category_id || (categories.length > 0 ? categories[0].id : ""),
-      detalhes: item.detalhes || "",
-      created_at: item.created_at ? item.created_at.split('T')[0] : new Date().toISOString().split('T')[0]
-    })
+    setFormData({ estabelecimento: item.estabelecimento ?? "", valor: Math.abs(item.valor).toString(), tipo: item.tipo, category_id: item.category_id, detalhes: item.detalhes ?? "", transaction_date: item.transaction_date || item.created_at.slice(0, 10) })
     setIsModalOpen(true)
   }
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSaving(true)
-    
+  async function handleSave(event: FormEvent) {
+    event.preventDefault(); setIsSaving(true); setError(null)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("Usuário não autenticado")
-
-      if (!formData.category_id) {
-        throw new Error("Por favor, selecione uma categoria. Se não houver nenhuma, crie uma primeiro na página de Categorias.")
-      }
-
-      const payload = {
-        estabelecimento: formData.estabelecimento,
-        valor: Math.abs(Number(formData.valor)),
-        tipo: formData.tipo,
-        category_id: formData.category_id,
-        detalhes: formData.detalhes,
-        quando: formData.created_at,
-        userid: user.id,
-        created_at: new Date(formData.created_at).toISOString()
-      }
-
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) throw new Error("Sua sessão expirou. Entre novamente.")
+      if (!formData.category_id) throw new Error("Crie ou selecione uma categoria.")
+      const payload = { estabelecimento: formData.estabelecimento.trim(), valor: parseMoney(formData.valor), tipo: formData.tipo, category_id: formData.category_id, detalhes: formData.detalhes.trim() || null, transaction_date: formData.transaction_date, quando: formData.transaction_date }
       if (editingItem) {
-        const { error } = await supabase.from('transacoes').update(payload).eq('id', editingItem.id)
-        if (error) throw error
-        
-        // Update local state with the joined category name for display
-        const catName = categories.find(c => c.id === payload.category_id)?.nome
-        setData(data.map(item => item.id === editingItem.id ? { ...item, ...payload, categorias: { nome: catName } } : item))
+        const { error: updateError } = await supabase.from("transacoes").update(payload).eq("id", editingItem.id)
+        if (updateError) throw updateError
       } else {
-        const { data: newItem, error } = await supabase.from('transacoes').insert([payload]).select('*, categorias(nome)').single()
-        if (error) throw error
-        if (newItem) setData([newItem, ...data])
+        const { error: insertError } = await supabase.from("transacoes").insert({ ...payload, userid: user.id })
+        if (insertError) throw insertError
       }
-      
       setIsModalOpen(false)
-    } catch (e: any) {
-      alert("Erro ao salvar: " + e.message)
-    } finally {
-      setIsSaving(false)
-    }
+      await Promise.all([loadPage(), loadSummary()])
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Não foi possível salvar.")
+    } finally { setIsSaving(false) }
   }
 
-  // Calculations
-  let receitas = 0
-  let despesas = 0
-  
-  const filteredData = data.filter(item => {
-    const title = (item.estabelecimento || '').toLowerCase()
-    return title.includes(searchTerm.toLowerCase())
-  })
-
-  filteredData.forEach(item => {
-    const valor = Number(item.valor || 0)
-    const tipo = (item.tipo || '').toLowerCase()
-    const isReceita = tipo === 'receita' || tipo === 'income' || (valor > 0 && tipo !== 'despesa' && tipo !== 'expense')
-    
-    if (isReceita) receitas += Math.abs(valor)
-    else despesas += Math.abs(valor)
-  })
-
-  const saldo = receitas - despesas
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+  async function executeDelete(id: number) {
+    const previous = data
+    setData((current) => current.filter((item) => item.id !== id)); setItemToDelete(null)
+    const { error: deleteError } = await supabase.from("transacoes").delete().eq("id", id)
+    if (deleteError) { setData(previous); setError(deleteError.message); return }
+    await loadSummary()
   }
 
-  const formatDate = (dateString: string) => {
-    if (!dateString) return ""
-    try {
-      const cleanDate = dateString.split('T')[0]
-      const parts = cleanDate.split('-')
-      if (parts.length === 3) {
-        const [year, month, day] = parts
-        if (year.length === 4) {
-          return `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`
-        }
-      }
-      return format(parseISO(dateString), "dd/MM/yyyy", { locale: ptBR })
-    } catch (e) {
-      return dateString
-    }
+  async function loadMore() {
+    const cursor = data.at(-1)?.id
+    if (!cursor) return
+    setLoadingMore(true)
+    try { await loadPage(cursor) } catch (pageError) { setError(pageError instanceof Error ? pageError.message : "Não foi possível carregar mais registros.") } finally { setLoadingMore(false) }
   }
 
-  return (
-    <div className="space-y-6 relative">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Transações</h1>
-          <p className="text-sm text-muted-foreground mt-1">Gerencie suas receitas e despesas.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {isDeletingAll ? (
-            <div className="flex items-center gap-2 bg-red-500/10 p-1 rounded-xl border border-red-500/20 backdrop-blur-md">
-              <span className="text-xs text-[#ff3366] font-medium px-2">Remover todas?</span>
-              <Button onClick={executeDeleteAll} size="sm" className="h-8 bg-[#ff3366] hover:bg-[#ff3366]/90 text-white text-xs rounded-lg">Sim</Button>
-              <Button onClick={() => setIsDeletingAll(false)} variant="outline" size="sm" className="h-8 text-xs border-border text-foreground hover:bg-muted rounded-lg">Não</Button>
-            </div>
-          ) : (
-            <Button onClick={() => setIsDeletingAll(true)} variant="outline" className="text-[#ff3366] border-[#ff3366]/30 bg-[#ff3366]/5 hover:bg-[#ff3366]/10 rounded-xl">
-              <Trash2 className="w-4 h-4 mr-2" />
-              Remover Todas
-            </Button>
-          )}
-          <Button onClick={openNewModal} className="bg-[#00ff88] hover:bg-[#00ff88]/90 text-black font-semibold rounded-xl shadow-[0_0_15px_rgba(0,255,136,0.3)]">
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Transação
-          </Button>
-        </div>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card className="glass-card border-none relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-[#00ff88]/10 rounded-bl-full -mr-12 -mt-12 transition-transform group-hover:scale-110"></div>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Receitas</CardTitle>
-            <div className="w-8 h-8 rounded-full bg-[#00ff88]/10 flex items-center justify-center border border-[#00ff88]/20">
-              <TrendingUp className="h-4 w-4 text-[#00ff88]" />
-            </div>
-          </CardHeader>
-          <CardContent className="relative z-10">
-            <div className="text-3xl font-bold text-[#00ff88]">{formatCurrency(receitas)}</div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card border-none relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-[#ff3366]/10 rounded-bl-full -mr-12 -mt-12 transition-transform group-hover:scale-110"></div>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Despesas</CardTitle>
-            <div className="w-8 h-8 rounded-full bg-[#ff3366]/10 flex items-center justify-center border border-[#ff3366]/20">
-              <TrendingDown className="h-4 w-4 text-[#ff3366]" />
-            </div>
-          </CardHeader>
-          <CardContent className="relative z-10">
-            <div className="text-3xl font-bold text-[#ff3366]">{formatCurrency(despesas)}</div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card border-none relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-bl-full -mr-12 -mt-12 transition-transform group-hover:scale-110"></div>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Saldo</CardTitle>
-            <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center border border-blue-500/20">
-              <DollarSign className="h-4 w-4 text-blue-400" />
-            </div>
-          </CardHeader>
-          <CardContent className="relative z-10">
-            <div className={`text-3xl font-bold ${saldo < 0 ? 'text-[#ff3366]' : 'text-foreground'}`}>
-              {formatCurrency(saldo)}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-4 items-center justify-between glass-panel p-4 rounded-2xl">
-        <div className="relative w-full sm:w-96">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input 
-            placeholder="Pesquisar transações..." 
-            className="pl-9 bg-foreground/5 border-border text-foreground rounded-xl focus-visible:ring-[#00ff88]"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Button variant="outline" className="w-full sm:w-auto bg-foreground/5 border-border text-foreground hover:bg-muted rounded-xl">
-            <Filter className="w-4 h-4 mr-2" />
-            Filtros
-          </Button>
-        </div>
-      </div>
-      
-      <div className="space-y-4">
-        {loading ? (
-          <div className="flex justify-center items-center py-20 glass-panel rounded-2xl">
-            <Loader2 className="h-8 w-8 animate-spin text-[#00ff88]" />
-          </div>
-        ) : error ? (
-          <div className="p-8 text-center flex flex-col items-center justify-center text-red-500 glass-panel rounded-2xl">
-            <AlertCircle className="h-10 w-10 mb-2 opacity-50" />
-            <p>{error}</p>
-          </div>
-        ) : filteredData.length === 0 ? (
-          <div className="p-12 text-center text-muted-foreground glass-panel rounded-2xl">
-            Nenhuma transação encontrada.
-          </div>
-        ) : (
-          filteredData.map((item, index) => {
-            const title = item.estabelecimento || 'Transação sem título'
-            const valor = Number(item.valor || 0)
-            const tipo = (item.tipo || '').toLowerCase()
-            const isReceita = tipo === 'receita' || tipo === 'income' || (valor > 0 && tipo !== 'despesa' && tipo !== 'expense')
-            const category = item.categorias?.nome || 'Sem categoria'
-            const date = item.created_at
-            const details = item.detalhes || ''
-
-            return (
-              <Card key={item.id || index} className="glass-card border-none overflow-hidden group hover:bg-white/[0.02] transition-colors">
-                <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className={`mt-1 p-3 rounded-2xl flex items-center justify-center shrink-0 border ${isReceita ? 'bg-[#00ff88]/10 border-[#00ff88]/20 text-[#00ff88]' : 'bg-[#ff3366]/10 border-[#ff3366]/20 text-[#ff3366]'}`}>
-                      {isReceita ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold text-base text-foreground">{title}</h3>
-                        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${isReceita ? 'bg-[#00ff88]/10 text-[#00ff88] border-[#00ff88]/20' : 'bg-[#ff3366]/10 text-[#ff3366] border-[#ff3366]/20'}`}>
-                          {isReceita ? 'Receita' : 'Despesa'}
-                        </span>
-                      </div>
-                      <div className="text-sm text-muted-foreground space-y-1">
-                        <p><span className="font-medium text-foreground/70">Categoria:</span> {category}</p>
-                        <p><span className="font-medium text-foreground/70">Data:</span> {formatDate(date)}</p>
-                        {details && <p><span className="font-medium text-foreground/70">Detalhes:</span> {details}</p>}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex sm:flex-col items-center sm:items-end justify-between gap-4 sm:gap-3 w-full sm:w-auto border-t sm:border-t-0 pt-4 sm:pt-0 mt-2 sm:mt-0 border-border">
-                    <span className={`font-bold text-lg ${isReceita ? 'text-[#00ff88]' : 'text-[#ff3366]'}`}>
-                      {isReceita ? '+' : '-'}{formatCurrency(Math.abs(valor))}
-                    </span>
-                    {itemToDelete === item.id ? (
-                      <div className="flex gap-2 items-center bg-red-500/10 p-1 rounded-lg border border-red-500/20">
-                        <Button onClick={() => executeDelete(item)} size="sm" className="h-8 bg-[#ff3366] hover:bg-[#ff3366]/90 text-white px-2 text-xs rounded-md">Confirmar</Button>
-                        <Button onClick={() => setItemToDelete(null)} variant="outline" size="sm" className="h-8 px-2 text-xs border-border text-foreground hover:bg-muted rounded-md">Cancelar</Button>
-                      </div>
-                    ) : (
-                      <div className="flex gap-2 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button onClick={() => openEditModal(item)} variant="outline" size="sm" className="h-8 w-8 p-0 text-blue-400 border-blue-400/30 bg-blue-400/10 hover:bg-blue-400/20 hover:text-blue-300 rounded-lg">
-                          <Edit className="w-4 h-4"/>
-                        </Button>
-                        <Button onClick={() => setItemToDelete(item.id)} variant="outline" size="sm" className="h-8 w-8 p-0 text-[#ff3366] border-[#ff3366]/30 bg-[#ff3366]/10 hover:bg-[#ff3366]/20 hover:text-[#ff3366] rounded-lg">
-                          <Trash2 className="w-4 h-4"/>
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            )
-          })
-        )}
-      </div>
-
-      {/* Modal Overlay */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <Card className="w-full max-w-md shadow-2xl glass-card border-border animate-in fade-in zoom-in duration-200">
-            <CardHeader className="flex flex-row items-center justify-between border-b border-border pb-4">
-              <CardTitle className="text-foreground">{editingItem ? 'Editar Transação' : 'Nova Transação'}</CardTitle>
-              <Button variant="ghost" size="icon" onClick={() => setIsModalOpen(false)} className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-muted">
-                <X className="h-4 w-4" />
-              </Button>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <form onSubmit={handleSave} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Estabelecimento</label>
-                  <Input 
-                    required
-                    value={formData.estabelecimento}
-                    onChange={(e) => setFormData({...formData, estabelecimento: e.target.value})}
-                    placeholder="Ex: Supermercado, Salário..."
-                    className="bg-foreground/5 border-border text-foreground rounded-xl focus-visible:ring-[#00ff88]"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Valor (R$)</label>
-                    <Input 
-                      required
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.valor}
-                      onChange={(e) => setFormData({...formData, valor: e.target.value})}
-                      placeholder="0.00"
-                      className="bg-foreground/5 border-border text-foreground rounded-xl focus-visible:ring-[#00ff88]"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Tipo</label>
-                    <select 
-                      className="flex h-10 w-full items-center justify-between rounded-xl border border-border bg-foreground/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#00ff88] disabled:cursor-not-allowed disabled:opacity-50"
-                      value={formData.tipo}
-                      onChange={(e) => setFormData({...formData, tipo: e.target.value})}
-                    >
-                      <option value="despesa" className="bg-card text-foreground">Despesa</option>
-                      <option value="receita" className="bg-card text-foreground">Receita</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Categoria</label>
-                  <select 
-                    required
-                    className="flex h-10 w-full items-center justify-between rounded-xl border border-border bg-foreground/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#00ff88] disabled:cursor-not-allowed disabled:opacity-50"
-                    value={formData.category_id}
-                    onChange={(e) => setFormData({...formData, category_id: e.target.value})}
-                  >
-                    {categories.length === 0 && <option value="" className="bg-card text-muted-foreground">Crie uma categoria primeiro</option>}
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.id} className="bg-card text-foreground">{cat.nome}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Data</label>
-                  <Input 
-                    required
-                    type="date"
-                    value={formData.created_at}
-                    onChange={(e) => setFormData({...formData, created_at: e.target.value})}
-                    className="bg-foreground/5 border-border text-foreground rounded-xl focus-visible:ring-[#00ff88] [color-scheme:dark]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Detalhes (Opcional)</label>
-                  <Input 
-                    value={formData.detalhes}
-                    onChange={(e) => setFormData({...formData, detalhes: e.target.value})}
-                    placeholder="Observações adicionais..."
-                    className="bg-foreground/5 border-border text-foreground rounded-xl focus-visible:ring-[#00ff88]"
-                  />
-                </div>
-                <div className="pt-4 flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} className="rounded-xl border-border text-foreground hover:bg-muted">Cancelar</Button>
-                  <Button type="submit" disabled={isSaving} className="rounded-xl bg-[#00ff88] hover:bg-[#00ff88]/90 text-black font-semibold shadow-[0_0_15px_rgba(0,255,136,0.3)]">
-                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    {editingItem ? 'Salvar' : 'Criar'}
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </div>
-  )
+  return <div className="space-y-6"><header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><h1 className="text-3xl font-bold">Transações</h1><p className="mt-1 text-sm text-muted-foreground">{summary.total_count} lançamentos no total.</p></div><Button onClick={openNewModal} disabled={categories.length === 0} className="rounded-xl bg-[#00ff88] font-semibold text-black hover:bg-[#00e87b]"><Plus className="mr-2 h-4 w-4" aria-hidden="true" />Nova transação</Button></header>
+    {error && <div role="alert" className="flex items-start gap-2 rounded-xl border border-[#ff3366]/20 bg-[#ff3366]/10 p-4 text-sm text-[#d91d51] dark:text-[#ff6690]"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span>{error}</span><button className="ml-auto underline" onClick={() => setError(null)}>Fechar</button></div>}
+    {categories.length === 0 && !loading && <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-700 dark:text-amber-300">Crie uma categoria antes de registrar transações.</div>}
+    <section className="grid gap-4 md:grid-cols-3" aria-label="Resumo financeiro"><SummaryCard title="Receitas" value={summary.receitas} icon={TrendingUp} color="text-[#00aa5c] dark:text-[#00ff88]" /><SummaryCard title="Despesas" value={summary.despesas} icon={TrendingDown} color="text-[#d91d51] dark:text-[#ff3366]" /><SummaryCard title="Saldo" value={summary.saldo} icon={DollarSign} color={summary.saldo < 0 ? "text-[#d91d51] dark:text-[#ff3366]" : "text-foreground"} /></section>
+    <div className="glass-panel rounded-2xl p-4"><label htmlFor="transaction-search" className="sr-only">Pesquisar transações carregadas</label><div className="relative max-w-lg"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" /><Input id="transaction-search" type="search" placeholder="Pesquisar nos registros carregados..." className="rounded-xl pl-9" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div></div>
+    {loading ? <div className="flex justify-center py-20" role="status"><Loader2 className="h-8 w-8 animate-spin text-[#00ff88]" /><span className="sr-only">Carregando</span></div> : <section className="space-y-3" aria-label="Lista de transações">{filteredData.length === 0 ? <div className="glass-panel rounded-2xl p-12 text-center text-muted-foreground">Nenhuma transação encontrada.</div> : filteredData.map((item) => <Card key={item.id} className="glass-card border-none"><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h2 className="truncate font-semibold">{item.estabelecimento || "Sem título"}</h2><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${item.tipo === "receita" ? "border-[#00ff88]/20 bg-[#00ff88]/10 text-[#00aa5c] dark:text-[#00ff88]" : "border-[#ff3366]/20 bg-[#ff3366]/10 text-[#d91d51] dark:text-[#ff3366]"}`}>{item.tipo}</span></div><p className="mt-1 text-sm text-muted-foreground">{item.categorias?.nome ?? "Sem categoria"} · {formatDateBR(item.transaction_date)}</p>{item.detalhes && <p className="mt-1 truncate text-sm text-muted-foreground">{item.detalhes}</p>}</div><div className="flex items-center justify-between gap-3 sm:justify-end"><strong className={item.tipo === "receita" ? "text-[#00aa5c] dark:text-[#00ff88]" : "text-[#d91d51] dark:text-[#ff3366]"}>{item.tipo === "receita" ? "+" : "−"}{formatCurrency(Math.abs(item.valor))}</strong>{itemToDelete === item.id ? <div className="flex gap-2"><Button size="sm" onClick={() => void executeDelete(item.id)} className="bg-[#ff3366] text-white">Confirmar</Button><Button size="sm" variant="outline" onClick={() => setItemToDelete(null)}>Cancelar</Button></div> : <div className="flex gap-2"><Button size="sm" variant="outline" aria-label={`Editar ${item.estabelecimento ?? "transação"}`} onClick={() => openEditModal(item)}><Edit className="h-4 w-4" aria-hidden="true" /></Button><Button size="sm" variant="outline" aria-label={`Excluir ${item.estabelecimento ?? "transação"}`} onClick={() => setItemToDelete(item.id)}><Trash2 className="h-4 w-4 text-[#ff3366]" aria-hidden="true" /></Button></div>}</div></CardContent></Card>)}</section>}
+    {hasMore && !searchTerm && <div className="flex justify-center"><Button variant="outline" onClick={() => void loadMore()} disabled={loadingMore}>{loadingMore && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{loadingMore ? "Carregando..." : "Carregar mais"}</Button></div>}
+    {isModalOpen && <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4" role="dialog" aria-modal="true" aria-labelledby="transaction-dialog-title"><Card className="glass-card w-full max-w-lg"><CardHeader className="flex flex-row items-center justify-between"><CardTitle id="transaction-dialog-title">{editingItem ? "Editar transação" : "Nova transação"}</CardTitle><Button size="sm" variant="ghost" aria-label="Fechar" onClick={() => setIsModalOpen(false)} disabled={isSaving}><X className="h-4 w-4" /></Button></CardHeader><CardContent><form className="space-y-4" onSubmit={handleSave}><Field id="estabelecimento" label="Estabelecimento"><Input id="estabelecimento" required maxLength={120} value={formData.estabelecimento} onChange={(e) => setFormData({ ...formData, estabelecimento: e.target.value })} /></Field><div className="grid grid-cols-2 gap-4"><Field id="valor" label="Valor (R$)"><Input id="valor" required type="number" inputMode="decimal" step="0.01" min="0.01" value={formData.valor} onChange={(e) => setFormData({ ...formData, valor: e.target.value })} /></Field><Field id="tipo" label="Tipo"><select id="tipo" className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm" value={formData.tipo} onChange={(e) => setFormData({ ...formData, tipo: e.target.value as "receita" | "despesa" })}><option value="despesa">Despesa</option><option value="receita">Receita</option></select></Field></div><Field id="category" label="Categoria"><select id="category" required className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm" value={formData.category_id} onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}><option value="">Selecione</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.nome}</option>)}</select></Field><Field id="transaction-date" label="Data"><Input id="transaction-date" required type="date" value={formData.transaction_date} onChange={(e) => setFormData({ ...formData, transaction_date: e.target.value })} /></Field><Field id="details" label="Detalhes (opcional)"><Input id="details" maxLength={300} value={formData.detalhes} onChange={(e) => setFormData({ ...formData, detalhes: e.target.value })} /></Field><div className="flex justify-end gap-2 pt-3"><Button type="button" variant="outline" onClick={() => setIsModalOpen(false)} disabled={isSaving}>Cancelar</Button><Button disabled={isSaving} className="bg-[#00ff88] text-black hover:bg-[#00e87b]">{isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{isSaving ? "Salvando..." : "Salvar"}</Button></div></form></CardContent></Card></div>}
+  </div>
 }
+
+function SummaryCard({ title, value, icon: Icon, color }: { title: string; value: number; icon: typeof TrendingUp; color: string }) { return <Card className="glass-card border-none"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-sm text-muted-foreground">{title}</CardTitle><Icon className={`h-4 w-4 ${color}`} aria-hidden="true" /></CardHeader><CardContent><div className={`text-2xl font-bold ${color}`}>{formatCurrency(value)}</div></CardContent></Card> }
+function Field({ id, label, children }: { id: string; label: string; children: ReactNode }) { return <div className="space-y-2"><label htmlFor={id} className="text-sm font-medium">{label}</label>{children}</div> }

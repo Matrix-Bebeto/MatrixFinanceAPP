@@ -1,198 +1,154 @@
-import { Link, useLocation, Outlet } from "react-router-dom"
-import { LayoutDashboard, Receipt, Tags, PieChart, Bell, User, LogOut, PanelLeftClose, PanelLeft, Sun, Moon, Aperture, X } from "lucide-react"
-import { supabase } from "@/src/lib/supabase"
 import { useEffect, useState } from "react"
+import type { User as AuthUser } from "@supabase/supabase-js"
+import {
+  Bell,
+  ChartPie,
+  Tags,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Moon,
+  ReceiptText,
+  Settings,
+  Sparkles,
+  Sun,
+  User,
+  WalletCards,
+  X,
+} from "lucide-react"
+import { Link, Outlet, useLocation } from "react-router-dom"
+import { supabase } from "@/src/lib/supabase"
+import type { Profile } from "@/src/types/database"
+import "../pages/visual-v2.css"
+import "../app-v2.css"
+
+const navigation = [
+  { icon: LayoutDashboard, label: "Visão geral", path: "/" },
+  { icon: ReceiptText, label: "Transações", path: "/transactions" },
+  { icon: Tags, label: "Categorias", path: "/categories" },
+  { icon: ChartPie, label: "Relatórios", path: "/reports" },
+  { icon: Bell, label: "Lembretes", path: "/reminders" },
+]
+
+const accountNavigation = [
+  { icon: User, label: "Perfil", path: "/profile" },
+  { icon: Settings, label: "Plano e assinatura", path: "/subscription" },
+]
 
 export function Layout() {
   const location = useLocation()
-  const [isDark, setIsDark] = useState(false)
-  const [user, setUser] = useState<any>(null)
-  const [profile, setProfile] = useState<any>(null)
+  const [isDark, setIsDark] = useState(true)
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   useEffect(() => {
-    // Check local storage or system preference
-    const storedTheme = localStorage.getItem('theme')
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-    
-    const shouldBeDark = storedTheme === 'dark' || (!storedTheme && prefersDark)
-    
+    const storedTheme = localStorage.getItem("theme")
+    const shouldBeDark = storedTheme ? storedTheme === "dark" : true
     setIsDark(shouldBeDark)
-    if (shouldBeDark) {
-      document.documentElement.classList.add('dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-    }
-    
-    const fetchProfile = () => {
-      supabase.auth.getUser().then(({ data: { user } }) => {
-        setUser(user)
-        if (user) {
-          supabase.from('profiles').select('*').eq('id', user.id).single().then(({ data }) => {
-            if (data) setProfile(data)
-          })
-        }
-      })
+    document.documentElement.classList.toggle("dark", shouldBeDark)
+
+    const fetchProfile = async () => {
+      const { data: authData } = await supabase.auth.getUser()
+      const currentUser = authData.user
+      setUser(currentUser)
+      if (!currentUser) return
+
+      const { data } = await supabase.from("profiles").select("*").eq("id", currentUser.id).single()
+      if (data) setProfile(data)
     }
 
-    fetchProfile()
-
-    window.addEventListener('profileUpdated', fetchProfile)
-    return () => window.removeEventListener('profileUpdated', fetchProfile)
+    void fetchProfile()
+    window.addEventListener("profileUpdated", fetchProfile)
+    return () => window.removeEventListener("profileUpdated", fetchProfile)
   }, [])
 
-  // Close sidebar on route change on mobile
   useEffect(() => {
     setIsSidebarOpen(false)
   }, [location.pathname])
 
+  const currentPage = [...navigation, ...accountNavigation].find(({ path }) => path === location.pathname)?.label ?? "Matrix Finance"
+  const displayName = profile?.nome || user?.email?.split("@")[0] || "Usuário"
+  const initials = displayName.slice(0, 2).toUpperCase()
+
   const toggleTheme = () => {
-    const newIsDark = !isDark
-    setIsDark(newIsDark)
-    
-    if (newIsDark) {
-      document.documentElement.classList.add('dark')
-      localStorage.setItem('theme', 'dark')
-    } else {
-      document.documentElement.classList.remove('dark')
-      localStorage.setItem('theme', 'light')
-    }
+    const nextTheme = !isDark
+    setIsDark(nextTheme)
+    document.documentElement.classList.toggle("dark", nextTheme)
+    localStorage.setItem("theme", nextTheme ? "dark" : "light")
   }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
-    window.location.href = "/login"
+    window.location.assign("/login")
   }
 
-  const navItems = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-    { icon: Receipt, label: "Transações", path: "/transactions" },
-    { icon: Tags, label: "Categorias", path: "/categories" },
-    { icon: PieChart, label: "Relatórios", path: "/reports" },
-    { icon: Bell, label: "Lembretes", path: "/reminders" },
-    { icon: User, label: "Perfil", path: "/profile" },
-  ]
+  const renderNavigation = (items: typeof navigation) => items.map(({ icon: Icon, label, path }) => {
+    const active = location.pathname === path
+    return (
+      <Link key={path} to={path} className={active ? "is-active" : ""} aria-current={active ? "page" : undefined}>
+        <Icon aria-hidden="true" />
+        <span>{label}</span>
+        {active && <i />}
+      </Link>
+    )
+  })
 
   return (
-    <div className="flex h-screen bg-background text-foreground overflow-hidden">
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+    <div className={`mf-v2 mf-app-v2 ${isDark ? "mf-v2--dark" : ""}`}>
+      <div className="mf-v2__ambient mf-v2__ambient--one" />
+      <div className="mf-v2__ambient mf-v2__ambient--two" />
 
-      {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-border bg-card/95 backdrop-blur-xl flex flex-col transition-transform duration-300 md:relative md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-6 border-b border-border flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#00ff88] to-[#00cc6a] flex items-center justify-center shadow-[0_0_15px_rgba(0,255,136,0.3)]">
-              <Aperture className="w-5 h-5 text-black" />
-            </div>
-            <h1 className="text-xl font-bold tracking-tight text-foreground">Matrix<span className="text-[#00ff88]"> Finance</span></h1>
-          </div>
-          <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-2 -mr-2 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <div className="px-6 py-4">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Menu Principal</p>
+      {isSidebarOpen && <button className="mf-v2__overlay" aria-label="Fechar menu" onClick={() => setIsSidebarOpen(false)} />}
+
+      <aside className={`mf-v2__sidebar ${isSidebarOpen ? "is-open" : ""}`}>
+        <div className="mf-v2__brand">
+          <div className="mf-v2__brand-mark"><WalletCards aria-hidden="true" /></div>
+          <div><strong>Matrix</strong><span>Finance</span></div>
+          <button className="mf-v2__mobile-close" aria-label="Fechar menu" onClick={() => setIsSidebarOpen(false)}><X aria-hidden="true" /></button>
         </div>
 
-        <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 text-sm font-medium ${
-                  isActive 
-                    ? "bg-primary/10 text-primary shadow-sm border border-primary/20" 
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                <item.icon className={`w-5 h-5 ${isActive ? "text-[#00ff88]" : ""}`} />
-                {item.label}
-              </Link>
-            )
-          })}
+        <div className="mf-v2__preview-tag"><Sparkles aria-hidden="true" /><span>Nova experiência</span><small>V2</small></div>
+
+        <nav className="mf-v2__nav" aria-label="Navegação principal">
+          <p>GESTÃO</p>
+          {renderNavigation(navigation)}
+          <p>CONTA</p>
+          {renderNavigation(accountNavigation)}
         </nav>
 
-        <div className="p-4 border-t border-border space-y-2">
-          <Link to="/subscription" className="flex items-center gap-3 mb-4 px-2 hover:bg-foreground/5 p-1.5 rounded-xl transition-all group cursor-pointer">
-            {profile?.avatar_url ? (
-              <img src={profile.avatar_url} alt="Avatar" className="w-10 h-10 rounded-full border border-border object-cover" />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white font-bold text-sm border border-border">
-                {(profile?.nome || user?.email || "U").substring(0, 2).toUpperCase()}
-              </div>
-            )}
-            <div className="overflow-hidden flex-1">
-              <p className="text-sm font-medium text-foreground truncate group-hover:text-[#00ff88] transition-colors">{profile?.nome || user?.email || "Usuário"}</p>
-              <p className="text-xs text-muted-foreground truncate">
-                {profile?.subscription_status === 'active' ? (
-                  <span className="text-[#00ff88] font-bold">Plano Pro</span>
-                ) : (
-                  <span>Plano Grátis</span>
-                )}
-              </p>
-            </div>
-          </Link>
-          
-          <button
-            onClick={toggleTheme}
-            className="flex items-center justify-between px-4 py-2.5 w-full rounded-xl border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-sm font-medium"
-          >
-            <div className="flex items-center gap-2">
-              {isDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-              <span>{isDark ? 'Modo Escuro' : 'Modo Claro'}</span>
-            </div>
-            <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${isDark ? 'bg-[#00ff88]' : 'bg-gray-400'}`}>
-              <div className={`w-3 h-3 rounded-full bg-white transition-transform ${isDark ? 'translate-x-4' : 'translate-x-0'}`} />
-            </div>
-          </button>
-
-          <button
-            onClick={handleLogout}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 w-full rounded-xl border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors text-sm font-medium"
-          >
-            <LogOut className="w-4 h-4" />
-            Sair da Conta
-          </button>
+        <div className="mf-v2__sidebar-card">
+          <div className="mf-v2__sidebar-card-icon"><Sparkles aria-hidden="true" /></div>
+          <strong>Seu dinheiro, mais claro.</strong>
+          <p>Decisões financeiras com informação real, segurança e tranquilidade.</p>
         </div>
+
+        <button className="mf-app-v2__logout" onClick={() => void handleLogout()}>
+          <LogOut aria-hidden="true" /> Sair da conta
+        </button>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 flex flex-col overflow-hidden relative w-full">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/[0.03] via-background to-background pointer-events-none"></div>
-        
-        {/* Topbar */}
-        <header className="h-16 border-b border-border bg-card/30 backdrop-blur-md flex items-center justify-between px-4 md:px-8 relative z-10">
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setIsSidebarOpen(true)}
-              className="p-2 -ml-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors md:hidden"
-            >
-              <PanelLeft className="w-6 h-6" />
-            </button>
-            <PanelLeftClose className="w-5 h-5 text-muted-foreground hidden md:block" />
-            <span className="font-medium text-foreground/80">Matrix Finance</span>
+      <main className="mf-v2__main mf-app-v2__main">
+        <header className="mf-v2__topbar">
+          <div className="mf-v2__topbar-title">
+            <button className="mf-v2__menu-button" aria-label="Abrir menu" onClick={() => setIsSidebarOpen(true)}><Menu aria-hidden="true" /></button>
+            <div><span>Matrix Finance</span><strong>{currentPage}</strong></div>
           </div>
-          <div className="flex items-center gap-4">
-            <button className="p-2 rounded-full border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-              <Bell className="w-4 h-4" />
+
+          <div className="mf-v2__topbar-actions">
+            <button className="mf-v2__icon-button" aria-label={isDark ? "Usar tema claro" : "Usar tema escuro"} onClick={toggleTheme}>
+              {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
             </button>
+            <Link to="/reminders" className="mf-v2__icon-button mf-v2__notification" aria-label="Abrir lembretes"><Bell aria-hidden="true" /><i /></Link>
+            <Link to="/profile" className="mf-v2__user" aria-label="Abrir perfil">
+              {profile?.avatar_url ? <img src={profile.avatar_url} alt="" /> : <div>{initials}</div>}
+              <span><strong>{displayName}</strong><small>{profile?.subscription_status === "active" ? "Plano Pro" : "Conta principal"}</small></span>
+            </Link>
           </div>
         </header>
-        
-        {/* Content Area */}
-        <div className="flex-1 overflow-auto p-4 md:p-8 relative z-10">
-          <div className="max-w-7xl mx-auto">
-            <Outlet />
-          </div>
+
+        <div className="mf-app-v2__scroll">
+          <div className="mf-v2__content mf-app-v2__content"><Outlet /></div>
         </div>
       </main>
     </div>

@@ -1,0 +1,1 @@
+const n=r=>new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(r);function t(r){const e=typeof r=="number"?r:Number(r.replace(",","."));if(!Number.isFinite(e))throw new Error("Informe um valor válido.");return Math.round(Math.abs(e)*100)/100}export{n as f,t as p};

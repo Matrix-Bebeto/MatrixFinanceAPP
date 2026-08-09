@@ -27,6 +27,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react"
+import { BrandLogo } from "@/src/components/BrandLogo"
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from "recharts"
 import { formatCurrency } from "@/src/lib/money"
 import "./visual-v2.css"
@@ -96,8 +97,7 @@ export function VisualV2() {
 
       <aside className={`mf-v2__sidebar ${mobileMenu ? "is-open" : ""}`}>
         <div className="mf-v2__brand">
-          <div className="mf-v2__brand-mark"><WalletCards aria-hidden="true" /></div>
-          <div><strong>Matrix</strong><span>Finance</span></div>
+          <BrandLogo className="mf-v2__brand-logo" />
           <button className="mf-v2__mobile-close" aria-label="Fechar menu" onClick={() => setMobileMenu(false)}><X aria-hidden="true" /></button>
         </div>
 

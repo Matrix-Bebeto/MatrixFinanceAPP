@@ -53,11 +53,8 @@
 
 .mf-v2__sidebar { min-height: 100vh; position: sticky; top: 0; height: 100vh; background: color-mix(in srgb, var(--v2-sidebar) 96%, transparent); border-right: 1px solid var(--v2-border); padding: 28px 20px 22px; display: flex; flex-direction: column; z-index: 20; }
 .mf-v2__brand { display: flex; align-items: center; gap: 12px; padding: 0 8px 26px; }
-.mf-v2__brand-mark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 14px; color: #092219; background: linear-gradient(145deg, #5ee7b9, #25bb85); box-shadow: 0 10px 26px rgba(38, 194, 139, 0.24); }
-.mf-v2__brand-mark svg { width: 22px; }
-.mf-v2__brand > div:nth-child(2) { display: flex; gap: 4px; font-size: 18px; letter-spacing: -0.04em; }
-.mf-v2__brand strong { font-weight: 800; }
-.mf-v2__brand span { font-weight: 500; color: var(--v2-muted); }
+.mf-v2__brand-logo { display: block; width: 190px; height: 64px; object-fit: cover; object-position: center; border-radius: 15px; background: rgba(255, 255, 255, .96); box-shadow: 0 12px 30px rgba(0, 0, 0, .14); }
+.mf-v2__brand .mf-v2__mobile-close { margin-left: auto; }
 .mf-v2__mobile-close { display: none; margin-left: auto; border: 0; background: transparent; color: var(--v2-muted); }
 
 .mf-v2__preview-tag { margin: 0 2px 26px; min-height: 42px; border: 1px solid color-mix(in srgb, var(--v2-violet) 28%, var(--v2-border)); background: var(--v2-violet-soft); color: var(--v2-violet); border-radius: 13px; display: flex; align-items: center; padding: 0 12px; gap: 8px; font-size: 12px; font-weight: 700; }

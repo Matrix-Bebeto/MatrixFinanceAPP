@@ -48,11 +48,9 @@
 
 .mf-login-v2__story { min-height: 100vh; padding: 42px clamp(42px, 5vw, 78px); display: flex; flex-direction: column; background: linear-gradient(145deg, color-mix(in srgb, var(--login-panel) 96%, var(--login-mint-soft)), var(--login-panel)); border-right: 1px solid var(--login-border); position: relative; z-index: 2; }
 .mf-login-v2__story::after { content: ""; position: absolute; width: 460px; height: 460px; border: 1px solid color-mix(in srgb, var(--login-mint) 15%, transparent); border-radius: 50%; left: -240px; bottom: -220px; pointer-events: none; }
-.mf-login-v2__brand { display: flex; align-items: center; gap: 5px; color: var(--login-text); text-decoration: none; width: fit-content; }
-.mf-login-v2__brand > span, .mf-login-v2__mobile-brand > span { width: 43px; height: 43px; display: grid; place-items: center; border-radius: 14px; color: #092219; background: linear-gradient(145deg, #5ee7b9, #25bb85); box-shadow: 0 10px 26px rgba(38, 194, 139, .22); margin-right: 8px; }
-.mf-login-v2__brand svg, .mf-login-v2__mobile-brand svg { width: 22px; }
-.mf-login-v2__brand strong { font-size: 19px; letter-spacing: -.04em; }
-.mf-login-v2__brand small { color: var(--login-muted); font-size: 19px; }
+.mf-login-v2__brand { display: block; width: fit-content; border-radius: 16px; box-shadow: 0 14px 34px rgba(0, 0, 0, .15); }
+.mf-login-v2__brand-image { display: block; width: 220px; height: 72px; object-fit: cover; object-position: center; border-radius: 16px; background: rgba(255, 255, 255, .96); }
+.mf-login-v2__brand:focus-visible { outline: 3px solid color-mix(in srgb, var(--login-mint) 55%, transparent); outline-offset: 3px; }
 
 .mf-login-v2__story-copy { margin: auto 0 30px; max-width: 610px; }
 .mf-login-v2__eyebrow { display: flex; align-items: center; gap: 8px; color: var(--login-mint); font-size: 11px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
@@ -126,8 +124,8 @@
   .mf-login-v2__story { display: none; }
   .mf-login-v2__access { min-height: 100svh; padding: 86px 24px 35px; align-content: center; }
   .mf-login-v2__mobile-brand { display: flex; align-items: center; justify-content: center; margin-bottom: 35px; }
-  .mf-login-v2__mobile-brand > span { width: 38px; height: 38px; border-radius: 12px; }
-  .mf-login-v2__mobile-brand strong { font-size: 17px; letter-spacing: -.035em; }
+  .mf-login-v2__mobile-brand .mf-login-v2__brand-image { width: 190px; height: 62px; border-radius: 14px; box-shadow: 0 12px 30px rgba(0, 0, 0, .14); }
+  .mf-login-v2__mobile-brand { margin-bottom: 26px; }
   .mf-login-v2__form-icon { display: none; }
   .mf-login-v2__form-heading { text-align: center; margin-bottom: 27px; }
   .mf-login-v2__form-heading h2 { font-size: 30px; }

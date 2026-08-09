@@ -12,8 +12,8 @@ import {
   Sparkles,
   Sun,
   TrendingUp,
-  WalletCards,
 } from "lucide-react"
+import { BrandLogo } from "@/src/components/BrandLogo"
 import { supabase } from "@/src/lib/supabase"
 import { APP_PATHS, getAuthRedirectUrls } from "@/src/lib/navigation"
 import "./login-v2.css"
@@ -100,8 +100,7 @@ export function Login() {
 
       <section className="mf-login-v2__story" aria-label="Apresentação do Matrix Finance">
         <Link to={APP_PATHS.login} className="mf-login-v2__brand" aria-label="Matrix Finance">
-          <span><WalletCards aria-hidden="true" /></span>
-          <strong>Matrix</strong><small>Finance</small>
+          <BrandLogo className="mf-login-v2__brand-image" />
         </Link>
 
         <div className="mf-login-v2__story-copy">
@@ -126,7 +125,7 @@ export function Login() {
 
       <section className="mf-login-v2__access">
         <div className="mf-login-v2__mobile-brand">
-          <span><WalletCards aria-hidden="true" /></span><strong>Matrix Finance</strong>
+          <BrandLogo className="mf-login-v2__brand-image" />
         </div>
 
         <div className="mf-login-v2__form-wrap">

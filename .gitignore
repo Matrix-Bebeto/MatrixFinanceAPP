@@ -8,4 +8,5 @@ coverage/
 !.env.example
 
 !.env.production
+design/brand-concepts/
 deploy/*.tgz

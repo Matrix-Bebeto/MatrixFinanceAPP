@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react"
 import type { Session } from "@supabase/supabase-js"
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom"
 import { supabase } from "./lib/supabase"
+import { APP_PATHS, getAuthEventPath } from "./lib/navigation"
 import { PageLoader } from "./components/PageLoader"
 
 const Dashboard = lazy(() => import("./pages/Dashboard").then((m) => ({ default: m.Dashboard })))
@@ -30,8 +31,11 @@ export default function App() {
       setSession(data.session)
       setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
       if (active) setSession(nextSession)
+
+      const nextPath = getAuthEventPath(event, window.location.hash)
+      if (nextPath) window.location.hash = nextPath
     })
     return () => { active = false; subscription.unsubscribe() }
   }, [])
@@ -39,8 +43,8 @@ export default function App() {
   if (loading) return <PageLoader />
 
   return <HashRouter><Suspense fallback={<PageLoader />}><Routes>
-    <Route path="/login" element={!session ? <Login /> : <Navigate to="/" replace />} />
-    <Route path="/reset-password" element={<ResetPassword />} />
+    <Route path={APP_PATHS.login} element={!session ? <Login /> : <Navigate to={APP_PATHS.home} replace />} />
+    <Route path={APP_PATHS.resetPassword} element={<ResetPassword />} />
     <Route path="/visual-v2" element={<VisualV2 />} />
     <Route element={session ? <Layout /> : <Navigate to="/login" replace />}>
       <Route index element={<Dashboard />} />

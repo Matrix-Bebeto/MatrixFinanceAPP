@@ -1,1 +1,0 @@
-import{c as o}from"./index-Mw1oxfFg.js";const t=[["path",{d:"M17 7 7 17",key:"15tmo1"}],["path",{d:"M17 17H7V7",key:"1org7z"}]],c=o("arrow-down-left",t);const e=[["path",{d:"m9 18 6-6-6-6",key:"mthhwq"}]],n=o("chevron-right",e);export{c as A,n as C};

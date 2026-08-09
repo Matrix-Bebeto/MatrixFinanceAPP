@@ -75,7 +75,7 @@
 .mf-login-v2__insight-chart { height: 35px; display: flex; align-items: flex-end; gap: 8px; margin-top: 13px; }
 .mf-login-v2__insight-chart i { flex: 1; min-height: 7px; border-radius: 5px 5px 2px 2px; background: linear-gradient(to top, color-mix(in srgb, var(--login-mint) 32%, transparent), var(--login-mint)); }
 .mf-login-v2__insight-chart i:nth-child(1) { height: 35%; } .mf-login-v2__insight-chart i:nth-child(2) { height: 54%; } .mf-login-v2__insight-chart i:nth-child(3) { height: 43%; } .mf-login-v2__insight-chart i:nth-child(4) { height: 69%; } .mf-login-v2__insight-chart i:nth-child(5) { height: 76%; } .mf-login-v2__insight-chart i:nth-child(6) { height: 100%; }
-.mf-login-v2__security { display: flex; align-items: center; gap: 7px; color: var(--login-muted); font-size: 9px; margin: 18px 0 0; }
+.mf-login-v2__security { display: flex; align-items: center; gap: 7px; color: var(--login-muted); font-size: 11px; margin: 18px 0 0; }
 .mf-login-v2__security svg { width: 14px; color: var(--login-mint); }
 
 .mf-login-v2__access { min-height: 100vh; display: grid; place-items: center; padding: 90px clamp(35px, 6vw, 100px) 50px; position: relative; z-index: 3; }
@@ -87,10 +87,10 @@
 .mf-login-v2__form-heading h2 { font-size: clamp(28px, 3vw, 36px); letter-spacing: -.045em; margin: 0; }
 .mf-login-v2__form-heading p { color: var(--login-muted); font-size: 13px; line-height: 1.55; margin: 9px 0 0; }
 .mf-login-v2__form { display: grid; }
-.mf-login-v2__form > label, .mf-login-v2__label-row label { font-size: 11px; font-weight: 750; margin: 0 0 8px; }
+.mf-login-v2__form > label, .mf-login-v2__label-row label { font-size: 12px; font-weight: 750; margin: 0 0 8px; }
 .mf-login-v2__label-row { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; }
 .mf-login-v2__label-row label { margin: 0; }
-.mf-login-v2__label-row button { border: 0; background: transparent; color: var(--login-muted); font-size: 10px; padding: 0; }
+.mf-login-v2__label-row button { border: 0; background: transparent; color: var(--login-muted); font-size: 12px; padding: 0; }
 .mf-login-v2__label-row button:hover { color: var(--login-mint); }
 .mf-login-v2__field { height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--login-border); background: var(--login-panel); transition: 160ms ease; }
 .mf-login-v2__field:focus-within { border-color: color-mix(in srgb, var(--login-mint) 62%, var(--login-border)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--login-mint) 10%, transparent); }
@@ -99,7 +99,7 @@
 .mf-login-v2__field input::placeholder { color: color-mix(in srgb, var(--login-muted) 70%, transparent); }
 .mf-login-v2__password-toggle { width: 30px; height: 30px; border: 0; display: grid; place-items: center; background: transparent; color: var(--login-muted); padding: 0; }
 .mf-login-v2__password-toggle svg { width: 17px; }
-.mf-login-v2__hint { color: var(--login-muted); font-size: 9px; line-height: 1.5; margin: 7px 2px 0; }
+.mf-login-v2__hint { color: var(--login-muted); font-size: 11px; line-height: 1.5; margin: 7px 2px 0; }
 .mf-login-v2__submit { height: 53px; border: 0; border-radius: 14px; color: #092219; background: linear-gradient(135deg, #5ee7b9, #2fc791); box-shadow: 0 14px 30px rgba(36, 185, 133, .18); font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 24px; transition: 170ms ease; }
 .mf-login-v2__submit:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 18px 36px rgba(36, 185, 133, .25); }
 .mf-login-v2__submit:disabled { opacity: .65; cursor: wait; }
@@ -111,7 +111,7 @@
 .mf-login-v2__switch { border-top: 1px solid var(--login-border); margin-top: 26px; padding-top: 21px; text-align: center; color: var(--login-muted); font-size: 11px; }
 .mf-login-v2__switch p { margin: 0; }
 .mf-login-v2__switch button { border: 0; background: transparent; color: var(--login-mint); font-weight: 750; padding: 0; }
-.mf-login-v2__privacy { display: flex; justify-content: center; align-items: center; gap: 6px; color: var(--login-muted); font-size: 9px; margin: 22px 0 0; }
+.mf-login-v2__privacy { display: flex; justify-content: center; align-items: center; gap: 6px; color: var(--login-muted); font-size: 11px; margin: 22px 0 0; }
 .mf-login-v2__privacy svg { width: 13px; }
 
 @media (max-width: 980px) {
@@ -121,7 +121,7 @@
   .mf-login-v2__insight { display: none; }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 840px) {
   .mf-login-v2 { display: block; min-height: 100svh; overflow-y: auto; }
   .mf-login-v2__story { display: none; }
   .mf-login-v2__access { min-height: 100svh; padding: 86px 24px 35px; align-content: center; }

@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react"
+import { Link } from "react-router-dom"
 import {
   ArrowRight,
   CheckCircle2,
@@ -14,6 +15,7 @@ import {
   WalletCards,
 } from "lucide-react"
 import { supabase } from "@/src/lib/supabase"
+import { APP_PATHS, getAuthRedirectUrls } from "@/src/lib/navigation"
 import "./login-v2.css"
 
 type Mode = "login" | "signup" | "forgot"
@@ -40,9 +42,11 @@ export function Login() {
     setFeedback(null)
 
     try {
+      const redirects = getAuthRedirectUrls(window.location.origin)
+
       if (mode === "forgot") {
         const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: `${window.location.origin}/reset-password`,
+          redirectTo: redirects.callback,
         })
         if (error) throw error
         setFeedback({ type: "success", text: "Se o e-mail estiver cadastrado, você receberá as instruções de recuperação." })
@@ -53,7 +57,7 @@ export function Login() {
         const { error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { emailRedirectTo: `${window.location.origin}/` },
+          options: { emailRedirectTo: redirects.callback },
         })
         if (error) throw error
         setFeedback({ type: "success", text: "Conta criada. Verifique seu e-mail para concluir a confirmação." })
@@ -95,10 +99,10 @@ export function Login() {
       </button>
 
       <section className="mf-login-v2__story" aria-label="Apresentação do Matrix Finance">
-        <a href="/login" className="mf-login-v2__brand" aria-label="Matrix Finance">
+        <Link to={APP_PATHS.login} className="mf-login-v2__brand" aria-label="Matrix Finance">
           <span><WalletCards aria-hidden="true" /></span>
           <strong>Matrix</strong><small>Finance</small>
-        </a>
+        </Link>
 
         <div className="mf-login-v2__story-copy">
           <span className="mf-login-v2__eyebrow"><Sparkles aria-hidden="true" /> Inteligência para suas finanças</span>

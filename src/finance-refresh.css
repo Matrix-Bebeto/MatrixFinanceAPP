@@ -42,7 +42,7 @@
 .mf-app-v2__main { height: 100dvh; }
 .mf-app-v2 .mf-v2__sidebar { height: 100dvh; min-height: 100dvh; padding: 28px 16px 20px; }
 .mf-app-v2 .mf-v2__brand { padding: 0 8px 26px; }
-.mf-app-v2 .mf-v2__brand-logo { width: 184px; height: 60px; box-shadow: none; border-radius: 10px; }
+.mf-app-v2 .mf-v2__brand-logo { width: 196px; height: 70px; object-fit: cover; object-position: center; box-shadow: 0 10px 30px rgba(0, 0, 0, .2); border: 1px solid color-mix(in srgb, var(--v2-mint) 20%, var(--v2-border)); border-radius: 12px; background: #091113; }
 .mf-app-v2 .mf-v2__preview-tag { color: var(--v2-muted); background: transparent; border-color: var(--v2-border); font-size: .8125rem; border-radius: 8px; margin-bottom: 18px; }
 .mf-app-v2 .mf-v2__preview-tag svg { color: var(--v2-mint); }
 .mf-app-v2 .mf-v2__nav { gap: 6px; }

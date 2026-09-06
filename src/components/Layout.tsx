@@ -21,6 +21,7 @@ import { supabase } from "@/src/lib/supabase"
 import type { Profile } from "@/src/types/database"
 import "../pages/visual-v2.css"
 import "../app-v2.css"
+import "../finance-refresh.css"
 
 const navigation = [
   { icon: LayoutDashboard, label: "Visão geral", path: "/" },
@@ -107,7 +108,7 @@ export function Layout() {
           <button className="mf-v2__mobile-close" aria-label="Fechar menu" onClick={() => setIsSidebarOpen(false)}><X aria-hidden="true" /></button>
         </div>
 
-        <div className="mf-v2__preview-tag"><Sparkles aria-hidden="true" /><span>Nova experiência</span><small>V2</small></div>
+        <div className="mf-v2__preview-tag"><WalletIcon /><span>Seu espaço financeiro</span></div>
 
         <nav className="mf-v2__nav" aria-label="Navegação principal">
           <p>GESTÃO</p>
@@ -138,7 +139,7 @@ export function Layout() {
             <button className="mf-v2__icon-button" aria-label={isDark ? "Usar tema claro" : "Usar tema escuro"} onClick={toggleTheme}>
               {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
             </button>
-            <Link to="/reminders" className="mf-v2__icon-button mf-v2__notification" aria-label="Abrir lembretes"><Bell aria-hidden="true" /><i /></Link>
+            <Link to="/reminders" className="mf-v2__icon-button" aria-label="Abrir lembretes"><Bell aria-hidden="true" /></Link>
             <Link to="/profile" className="mf-v2__user" aria-label="Abrir perfil">
               {profile?.avatar_url ? <img src={profile.avatar_url} alt="" /> : <div>{initials}</div>}
               <span><strong>{displayName}</strong><small>{profile?.subscription_status === "active" ? "Plano Pro" : "Conta principal"}</small></span>
@@ -153,3 +154,5 @@ export function Layout() {
     </div>
   )
 }
+
+function WalletIcon() { return <ChartPie aria-hidden="true" /> }
